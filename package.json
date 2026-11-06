@@ -9,11 +9,11 @@
     "test:db": "tsx --test tests/db/*.test.ts",
     "spending": "tsx --env-file=.env scripts/spending.ts",
     "dev": "tsx watch --env-file=.env --import ./src/instrument.ts src/index.ts",
-    "build": "pnpm build:faq && tsc",
+    "build": "pnpm build:client && tsc",
     "start": "node --import ./dist/src/instrument.js dist/src/index.js",
     "db:studio": "node --env-file=.env ./node_modules/drizzle-kit/bin.cjs studio",
     "db:push": "node --env-file=.env ./node_modules/drizzle-kit/bin.cjs push",
-    "build:faq": "esbuild scripts/browser/faq.ts --bundle --minify --format=iife --outfile=public/faq.js"
+    "build:client": "esbuild scripts/browser/landing.ts --bundle --minify --format=iife --outfile=public/landing.js"
   },
   "dependencies": {
     "@daytona/sdk": "^0.227.0",

@@ -1,7 +1,11 @@
 import { webhook, webhooks } from "@trigger.dev/sdk";
 import { chat } from "@trigger.dev/sdk/ai";
 import { channelAgent, channelSurface } from "./channel-agent.js";
+import { ownedAttachmentLoader } from "./attachments.js";
 import { log } from "./log.js";
+import { deliverTaskReply } from "./task-tracking.js";
+import { spendingNotice, withAllowanceNotice } from "../spending/runtime.js";
+import { withServiceSpending } from "../spending/context.js";
 import { channelFileUrls, splitMessage, toUserMessage, } from "./channel-messages.js";
 import { downloadFile, MAX_DOWNLOAD_BYTES, MAX_UPLOAD_BYTES, sendFile, sendMessage, } from "./telegram-api.js";
 // The Hono webhook forwards linked users' updates here with this endpoint's secret in the header
@@ -66,35 +70,43 @@ const telegramChannel = chat.channels.custom({
         };
     },
     bind: (update) => ({ chatId: update.message.chat.id, clerkUserId: update.clerkUserId }),
-    download: async (url) => {
+    download: async (url, { handle }) => {
         const fileId = fileUrls.fromUrl(url);
-        return fileId === null ? null : { data: await downloadFile(fileId) };
+        return fileId === null ? null : {
+            data: await ownedAttachmentLoader("telegram", handle?.clerkUserId, downloadFile)(fileId),
+        };
     },
     surface: (ctx) => {
         const chatId = ctx.handle?.chatId ?? ctx.event.message.chat.id;
         return channelSurface({
             clerkUserId: ctx.handle?.clerkUserId ?? ctx.event.clerkUserId,
             maxSendBytes: MAX_UPLOAD_BYTES,
-            loadAttachment: downloadFile,
+            loadAttachment: ownedAttachmentLoader("telegram", ctx.handle?.clerkUserId ?? ctx.event?.clerkUserId, downloadFile),
             sendFile: async (file, caption) => {
                 await sendFile(chatId, file, caption);
             },
         });
     },
-    outbound: (reply) => (reply.text ? { text: reply.text } : null),
+    outbound: (reply) => {
+        const text = spendingNotice() ?? reply.text;
+        return text ? { text } : null;
+    },
     send: async (message, ctx) => {
         const chatId = ctx.handle?.chatId ?? ctx.event.message.chat.id;
-        let messageId = 0;
-        for (const chunk of splitMessage(message.text, TELEGRAM_MAX_LENGTH)) {
-            messageId = await sendMessage(chatId, chunk);
-        }
-        return { ref: String(messageId) };
+        return withAllowanceNotice(message.text, () => deliverTaskReply(async () => {
+            let messageId = 0;
+            for (const chunk of splitMessage(message.text, TELEGRAM_MAX_LENGTH)) {
+                messageId = await sendMessage(chatId, chunk);
+            }
+            return { ref: String(messageId) };
+        }), async (notice) => ({ ref: String(await sendMessage(chatId, notice)) }));
     },
     errorMessage: "Sorry, something went wrong. Please try again.",
 });
 export const telegramAgent = channelAgent({
     id: "telegram-agent",
     channel: telegramChannel,
+    platform: "telegram",
     platformName: "Telegram",
 });
 // Stickers, locations, contacts and the like have no text or file to work with; say so instead of
@@ -108,6 +120,6 @@ export const telegramUnsupportedMessage = webhook({
             "channel.platform": "telegram",
             "channel.event_id": event.update_id,
         });
-        await sendMessage(event.message.chat.id, "I can read text, photos, documents, audio and video, but not this kind of message.");
+        await withServiceSpending(() => sendMessage(event.message.chat.id, "I can read text, photos, documents, audio and video, but not this kind of message."));
     },
 });

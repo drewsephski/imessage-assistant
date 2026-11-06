@@ -4,6 +4,7 @@ import { chat } from "@trigger.dev/sdk/ai";
 import { tool } from "ai";
 import { z } from "zod";
 import { log } from "./log.js";
+import { reserveComputerLease, withComputerStartup } from "../spending/runtime.js";
 // A tool call the model got wrong (a directory instead of a file, a missing coordinate, a file too
 // big to send). The model sees the message and corrects itself, so it isn't reported to Sentry as
 // an error (see init.ts); failures of the sandbox or chat platforms still are
@@ -56,6 +57,7 @@ const readySandbox = async (name) => {
         return client().create({
             name,
             labels: { app: "personal-assistant" },
+            autoStopInterval: 15,
             // Stopped after 15 idle minutes (the default); archive after a day to free disk quota, then
             // delete after a week so abandoned chats don't pile up
             autoArchiveInterval: 24 * 60,
@@ -81,13 +83,17 @@ const readySandbox = async (name) => {
 // Parallel tool calls in one step share a lookup instead of racing to create the same sandbox.
 // Each new call checks again, since the sandbox may have stopped between turns
 const pending = new Map();
-const getSandbox = (name) => {
-    let sandbox = pending.get(name);
-    if (!sandbox) {
-        sandbox = readySandbox(name).finally(() => pending.delete(name));
-        pending.set(name, sandbox);
-    }
-    return sandbox;
+const getSandbox = async (name) => {
+    // Durable admission happens before lookup/create/start, including on later tool calls.
+    const lease = await reserveComputerLease(name);
+    return withComputerStartup(name, lease, async () => {
+        let sandbox = pending.get(name);
+        if (!sandbox) {
+            sandbox = readySandbox(name).finally(() => pending.delete(name));
+            pending.set(name, sandbox);
+        }
+        return sandbox;
+    });
 };
 // Screenshots and viewed files stay out of the stored transcript: execute keeps the bytes here by
 // tool call id and toModelOutput inlines them, so only the newest few reach the model and older
@@ -185,6 +191,9 @@ const sendFile = tool({
             throw new ToolInputError(`${fullPath} is ${size} bytes; the chat accepts at most ${surface.maxSendBytes}.`);
         }
         const data = await sandbox.fs.downloadFile(fullPath);
+        if (data.byteLength > surface.maxSendBytes) {
+            throw new ToolInputError(`The file exceeds the chat's ${surface.maxSendBytes}-byte limit.`);
+        }
         const filename = posix.basename(fullPath);
         await surface.sendFile({ data, filename, mediaType: mediaTypeOf(fullPath) }, caption);
         return { sent: filename, bytes: size };

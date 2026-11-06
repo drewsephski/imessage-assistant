@@ -1,8 +1,9 @@
 import { html, raw } from "hono/html";
 import type { Child } from "hono/jsx";
 
-// The public page at "/": what the assistant is and how to start texting it. Styles, script and
-// icons are inline; only the blob characters are separate files, served from public/blobs.
+// The public page at "/": what the assistant is and how to start texting it. Styles, the core script
+// and icons are inline. The blob characters are served from public/blobs, and the Motion animations
+// are bundled from scripts/browser into public/landing.js.
 
 export type LandingLinks = {
   // E.164 number people text on iMessage, e.g. "+14155550123"
@@ -176,6 +177,9 @@ const css = `
 }
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
 body {
   margin: 0;
   overflow-x: clip;
@@ -231,20 +235,27 @@ main:focus { outline: none; }
 
 /* Hero */
 .hero { padding-top: clamp(1.5rem, 5vw, 4.5rem); }
-.hero-copy { position: relative; z-index: 2; max-width: 45rem; }
+.hero-copy { text-align: center; }
+/* The characters stand centered on the panel below, with the image's transparent base behind it.
+   The small one is placed from the center too, so it stays beside the large one at every width. */
+.hero-art { --s: clamp(14rem, 24vw, 21rem); position: relative; display: flex; justify-content: center; margin-top: clamp(1rem, 2vw, 1.5rem); }
+.blob-hero { width: var(--s); height: auto; margin-bottom: calc(var(--s) * -.06); }
+.hero-art .blob-wow { position: absolute; right: calc(50% + var(--s) * .34); bottom: calc(var(--w) * -.28); height: auto; }
 .hero h1 {
   font: 800 clamp(2.875rem, 6.6vw, 5.75rem)/.98 var(--display);
   letter-spacing: -.035em; text-wrap: balance;
 }
+/* Each sentence starts its own line, and wraps within itself when it doesn't fit on one */
+.hero h1 span { display: inline-block; }
 .hero-sub {
-  margin-top: clamp(1.25rem, 2vw, 1.75rem); max-width: 31rem;
+  margin: clamp(1.25rem, 2vw, 1.75rem) auto 0; max-width: 31rem;
   font-size: clamp(1.125rem, 1.6vw, 1.3125rem); line-height: 1.45; color: var(--muted); text-wrap: pretty;
 }
-.buttons { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: clamp(1.5rem, 3vw, 2.25rem); }
+.buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: .75rem; margin-top: clamp(1.5rem, 3vw, 2.25rem); }
 .number { display: block; margin-top: .85rem; font-size: .9375rem; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
-.hero-setup { margin-top: .85rem; max-width: 31rem; font-size: .9375rem; font-weight: 500; color: var(--muted); text-wrap: pretty; }
+.hero-setup { margin: .85rem auto 0; max-width: 36rem; font-size: .9375rem; font-weight: 500; color: var(--muted); text-wrap: pretty; }
 .notice {
-  margin-top: clamp(1.5rem, 3vw, 2.25rem); max-width: 34rem;
+  margin: clamp(1.5rem, 3vw, 2.25rem) auto 0; max-width: 34rem;
   padding: 1rem 1.25rem; border-radius: 1.4rem;
   background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line);
   text-wrap: pretty;
@@ -273,10 +284,7 @@ main:focus { outline: none; }
 .panel.lilac { --surface: var(--lilac); border-radius: 3rem 5rem 3.5rem 4.5rem / 5rem 3rem 4.5rem 3.5rem; }
 .panel.gum { --surface: var(--gum); border-radius: 4.5rem 3.5rem 5rem 3rem / 3rem 4.5rem 3.5rem 5rem; }
 
-.stage-demo { margin-top: clamp(2.5rem, 5vw, 4rem); }
-.blob-hero { right: clamp(0rem, 2vw, 2rem); width: clamp(15rem, 37vw, 33rem); }
-.ledge .mini { --w: clamp(5.5rem, 8.5vw, 8rem); width: var(--w); }
-.ledge .blob-wow { left: 47%; bottom: calc(var(--w) * -.28); }
+.mini { --w: clamp(5.5rem, 8.5vw, 8rem); width: var(--w); }
 
 /* The conversation */
 .threads { display: grid; margin-top: clamp(1.5rem, 3vw, 2.5rem); }
@@ -334,8 +342,12 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 .motion .thread [data-step].in { opacity: 1; transform: none; transition: opacity .2s ease, transform .42s var(--spring); }
 .motion .thread .receipt[data-step] { transform: none; }
 
-.tabs { display: none; flex-wrap: wrap; gap: .4rem; }
+.tabs { position: relative; isolation: isolate; display: none; flex-wrap: wrap; gap: .4rem; }
 .js .tabs { display: flex; }
+/* The pill paints above the tabs' own backgrounds, so it stays solid crossing them, and below their
+   labels. landing.js adds it; until then the selected tab colors itself. */
+.tab-pill { position: absolute; left: 0; top: 0; border-radius: 999px; background: var(--ink); pointer-events: none; }
+.tab-label { position: relative; z-index: 1; }
 .tab {
   appearance: none; border: 0; cursor: pointer;
   padding: .55rem 1rem; border-radius: 999px; background: rgb(255 255 255 / .6); color: var(--ink);
@@ -345,6 +357,7 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 .tab:hover { background: #fff; }
 .tab:active { transform: scale(.95); }
 .tab[aria-selected="true"] { background: var(--ink); color: #fff; }
+.has-pill .tab[aria-selected="true"] { background: transparent; }
 .demo-note { margin-top: clamp(1.25rem, 2.5vw, 2rem); font-size: .875rem; font-weight: 500; color: var(--muted); }
 
 /* Blobs pop up once as they arrive, and squish when you hover them */
@@ -448,9 +461,6 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 .foot a { text-underline-offset: .25em; }
 
 @media (max-width: 58rem) {
-  .stage-demo { margin-top: clamp(13rem, 44vw, 23rem); }
-  .blob-hero { width: clamp(15rem, 50vw, 26rem); right: 1rem; }
-  .ledge .blob-wow { left: 1.5rem; }
   .ledge .blob-wink, .ledge .blob-sleepy { display: none; }
   .stage-faq { margin-top: clamp(2.5rem, 6vw, 3.5rem); }
   .ability, .ability.flip { grid-template-columns: 1fr; }
@@ -738,7 +748,9 @@ const Page = ({
         <main id="main" tabindex={-1}>
           <section class="wrap hero" aria-labelledby="hero-title">
             <div class="hero-copy">
-              <h1 id="hero-title">Text it what you need. Get the finished thing back.</h1>
+              <h1 id="hero-title">
+                <span>Text it what you need.</span> <span>Get the finished thing back.</span>
+              </h1>
               <p class="hero-sub">
                 A personal assistant{channels ? ` in ${channels}` : " you text"}, with its own computer and
                 the live web.
@@ -774,12 +786,12 @@ const Page = ({
                 {start && " The chat walks you through both."}
               </p>
             </div>
+            <div class="hero-art">
+              <Blob name="hero" class="blob-hero pop" size={1200} eager />
+              <Blob name="mini-wow" class="mini blob-wow pop" size={480} eager />
+            </div>
 
             <div class="stage stage-demo">
-              <div class="ledge">
-                <Blob name="mini-wow" class="mini blob-wow pop" size={480} eager />
-                <Blob name="hero" class="blob-hero pop" size={1200} eager />
-              </div>
               <div class="panel sky">
                 <div class="tabs" role="tablist" aria-label="Illustrative example conversations">
                   {shownExamples.map((example, index) => (
@@ -792,7 +804,7 @@ const Page = ({
                       aria-selected={index === 0 ? "true" : "false"}
                       tabindex={index === 0 ? 0 : -1}
                     >
-                      {example.tab}
+                      <span class="tab-label">{example.tab}</span>
                     </button>
                   ))}
                 </div>
@@ -961,7 +973,7 @@ const Page = ({
           </div>
         </footer>
         <script>{raw(script)}</script>
-        <script src="/faq.js" defer />
+        <script src="/landing.js" defer />
       </body>
     </html>
   );

@@ -1,8 +1,12 @@
 import { webhook, webhooks } from "@trigger.dev/sdk";
 import { chat } from "@trigger.dev/sdk/ai";
 import { channelAgent, channelSurface } from "./channel-agent.js";
+import { ownedAttachmentLoader } from "./attachments.js";
 import { channelFileUrls, splitMessage, toUserMessage } from "./channel-messages.js";
 import { log } from "./log.js";
+import { deliverTaskReply, recordTaskDelivery } from "./task-tracking.js";
+import { spendingNotice, withAllowanceNotice } from "../spending/runtime.js";
+import { withServiceSpending } from "../spending/context.js";
 import { downloadAttachment, isOptedOutError, markRead, MAX_DOWNLOAD_BYTES, messageText, MAX_UPLOAD_BYTES, sendFile, sendMessage, startTyping, stopTyping, } from "./linq-api.js";
 // The Hono webhook verifies Linq's Standard Webhooks signature, then forwards linked users'
 // messages here with this endpoint's secret in a header. Linq can't call this endpoint directly:
@@ -52,23 +56,25 @@ const linqChannel = chat.channels.custom({
         };
     },
     bind: (event) => ({ chatId: event.data.chat.id, clerkUserId: event.clerkUserId }),
-    download: async (url) => {
+    download: async (url, { handle }) => {
         const attachmentId = fileUrls.fromUrl(url);
-        return attachmentId === null ? null : { data: await downloadAttachment(attachmentId) };
+        return attachmentId === null ? null : {
+            data: await ownedAttachmentLoader("linq", handle?.clerkUserId, downloadAttachment)(attachmentId),
+        };
     },
     surface: (ctx) => {
         const chatId = chatIdOf(ctx);
         return channelSurface({
             clerkUserId: ctx.handle?.clerkUserId ?? ctx.event.clerkUserId,
             maxSendBytes: MAX_UPLOAD_BYTES,
-            loadAttachment: downloadAttachment,
+            loadAttachment: ownedAttachmentLoader("linq", ctx.handle?.clerkUserId ?? ctx.event?.clerkUserId, downloadAttachment),
             sendFile: async (file, caption) => {
                 await sendFile(chatId, file, caption);
             },
         });
     },
     // Read receipt and typing bubble while the assistant works, like a person replying
-    lifecycle: async (state, ctx) => {
+    lifecycle: async (state, ctx) => withServiceSpending(async () => {
         const chatId = chatIdOf(ctx);
         if (state === "working") {
             await Promise.all([markRead(chatId), startTyping(chatId)]);
@@ -76,21 +82,28 @@ const linqChannel = chat.channels.custom({
         else if (state === "idle" || state === "closed") {
             await stopTyping(chatId);
         }
+    }),
+    outbound: (reply) => {
+        const text = spendingNotice() ?? reply.text;
+        return text ? { text } : null;
     },
-    outbound: (reply) => (reply.text ? { text: reply.text } : null),
     send: async (message, ctx) => {
         const chatId = chatIdOf(ctx);
         let messageId = "";
         try {
-            for (const chunk of splitMessage(message.text, LINQ_MAX_LENGTH)) {
-                messageId = await sendMessage(chatId, chunk);
-            }
+            messageId = await withAllowanceNotice(message.text, () => deliverTaskReply(async () => {
+                for (const chunk of splitMessage(message.text, LINQ_MAX_LENGTH)) {
+                    messageId = await sendMessage(chatId, chunk);
+                }
+                return messageId;
+            }), (notice) => sendMessage(chatId, notice));
         }
         catch (error) {
             // The user texted STOP mid-turn: Linq blocks every send until they write again. Retrying,
             // or sending from another line, would break that, so the reply is dropped
             if (!isOptedOutError(error))
                 throw error;
+            await recordTaskDelivery("suppressed");
             log.warn("Reply dropped: recipient opted out", { "channel.platform": "linq" });
         }
         return { ref: messageId };
@@ -100,6 +113,7 @@ const linqChannel = chat.channels.custom({
 export const linqAgent = channelAgent({
     id: "linq-agent",
     channel: linqChannel,
+    platform: "linq",
     platformName: "iMessage",
 });
 // iMessage app cards and App Clips have no text or file to work with; say so instead of silently
@@ -114,7 +128,7 @@ export const linqUnsupportedMessage = webhook({
             "channel.event_id": event.event_id,
         });
         try {
-            await sendMessage(event.data.chat.id, "I can read text, photos, documents, audio and video, but not this kind of message.");
+            await withServiceSpending(() => sendMessage(event.data.chat.id, "I can read text, photos, documents, audio and video, but not this kind of message."));
         }
         catch (error) {
             if (!isOptedOutError(error))
