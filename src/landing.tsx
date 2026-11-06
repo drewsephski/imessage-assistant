@@ -168,7 +168,7 @@ a { color: inherit; }
 .hero { padding-block: clamp(1.25rem, 4vh, 3rem) clamp(3rem, 7vw, 5.5rem); }
 .lead { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1.5rem 3rem; }
 .intro {
-  flex: 1 1 22rem; max-width: 31ch;
+  flex: 1 1 22rem; max-width: 37rem;
   font: 600 clamp(1.3125rem, 2.2vw, 1.8125rem)/1.24 var(--display);
   letter-spacing: -.022em; text-wrap: balance; color: var(--muted);
 }
@@ -248,8 +248,8 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 }
 .tab:hover { color: var(--ink); }
 .tab[aria-selected="true"] { background: var(--ink); color: var(--ground); }
-.actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding-bottom: .15rem; }
-.number { font-size: .9375rem; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .4rem; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .6rem; }
+.number { flex-basis: 100%; text-align: right; font-size: .875rem; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; padding-right: .35rem; }
 
 /* What it does */
 .part { padding-block: clamp(3.5rem, 8vw, 6.5rem); }
@@ -285,9 +285,9 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 @media (max-width: 52rem) {
   .ability h3, .ability p { grid-column: 1 / -1; }
   .steps { grid-template-columns: 1fr; }
-  .actions { flex: 1 1 100%; }
+  .actions { flex: 1 1 100%; justify-content: flex-start; }
   .actions .btn { flex: 1 1 auto; }
-  .number { flex-basis: 100%; margin: 0; }
+  .number { text-align: left; padding: 0 0 0 .35rem; }
 }
 @media (max-width: 34rem) {
   .bubble { max-width: 94%; }
@@ -497,7 +497,6 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
                 <p>It has its own computer and the live web, so it sends back the finished thing.</p>
               </div>
               <div class="actions">
-                {imessageNumber && <span class="number">{displayNumber(imessageNumber)}</span>}
                 {imessageUrl && (
                   <a class="btn btn-primary" href={imessageUrl}>
                     Text it on iMessage
@@ -512,6 +511,9 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
                   <a class="btn btn-primary" href={accountUrl}>
                     Sign in
                   </a>
+                )}
+                {imessageNumber && (
+                  <span class="number">or text {displayNumber(imessageNumber)}</span>
                 )}
               </div>
             </div>
