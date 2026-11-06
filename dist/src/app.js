@@ -1,10 +1,11 @@
 import { serveStatic } from '@hono/node-server/serve-static';
 import * as Sentry from '@sentry/node';
 import { Hono } from 'hono';
-import { upgradeUrl } from './billing.js';
+import { accountUrl, clerkFrontendApi } from './billing.js';
 import { calendarConfig } from './integrations/composio-calendar.js';
 import { landingPage } from './landing.js';
 import { linqWebhook } from './linq-webhook.js';
+import { pricingPage } from './pricing.js';
 import { telegramWebhook } from './telegram-webhook.js';
 const app = new Hono();
 // Registered first: traces each request and reports unhandled 5xx errors. The automatic
@@ -16,9 +17,9 @@ app.use(Sentry.honoMiddleware(app));
 const landingLinks = () => {
     const number = process.env.LINQ_PHONE_NUMBER?.replace(/[\s().-]/g, '');
     const username = process.env.TELEGRAM_BOT_USERNAME?.replace(/^@/, '');
-    let accountUrl;
+    let account;
     try {
-        accountUrl = upgradeUrl();
+        account = accountUrl();
     }
     catch {
         // No (or an unparseable) Clerk publishable key: the page simply has no account link
@@ -26,7 +27,9 @@ const landingLinks = () => {
     return {
         imessageNumber: number && /^\+[1-9]\d{6,14}$/.test(number) ? number : undefined,
         telegramUsername: username && /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(username) ? username : undefined,
-        accountUrl,
+        accountUrl: account,
+        // The pricing page needs the same Clerk key as the account link
+        pricingUrl: account && '/pricing',
         // Advertising is a separate rollout choice from installing credentials.
         calendarEnabled: process.env.CALENDAR_LANDING_ENABLED === 'true' && Boolean(calendarConfig()),
     };
@@ -37,6 +40,25 @@ app.get('/', (c) => {
     landing ??= landingPage(landingLinks());
     c.header('Cache-Control', 'public, max-age=300');
     return c.html(landing);
+});
+const pricingConfig = () => {
+    const publishableKey = process.env.CLERK_PUBLISHABLE_KEY;
+    if (!publishableKey)
+        return undefined;
+    try {
+        return { publishableKey, frontendApi: clerkFrontendApi(publishableKey) };
+    }
+    catch {
+        return undefined;
+    }
+};
+// Plans and prices are fetched from Clerk in the browser, so the page itself is as static as "/"
+app.get('/pricing', (c) => {
+    const config = pricingConfig();
+    if (!config)
+        return c.notFound();
+    c.header('Cache-Control', 'public, max-age=300');
+    return c.html(pricingPage(config));
 });
 // The landing page's script and images. Only these are served from disk, relative to the working
 // directory the server starts in (the repository root, for both `dev` and `start`).

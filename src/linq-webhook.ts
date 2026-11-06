@@ -1,7 +1,7 @@
 import type { MessageReceivedWebhookEvent } from "@linqapp/sdk/resources/webhooks";
 import * as Sentry from "@sentry/node";
 import { Hono } from "hono";
-import { forwardToTrigger, gateInbound, upgradeMessage } from "./channel-gate.js";
+import { forwardToTrigger, gateInbound } from "./channel-gate.js";
 import { log } from "./log.js";
 import { withServiceSpending } from "./spending/context.js";
 import { attachmentStore } from "./trigger/attachments.js";
@@ -55,6 +55,7 @@ export const linqWebhook = new Hono().post("/", async (c) => {
       platform: "linq",
       externalUserId: data.sender_handle.handle,
       chatId,
+      eventId: event.event_id,
     });
   } catch (error) {
     // A non-2xx makes Linq redeliver, so a Clerk outage retries instead of dropping the message
@@ -75,13 +76,13 @@ export const linqWebhook = new Hono().post("/", async (c) => {
   switch (gate.status) {
     case "linking":
       return c.body(null, 200);
-    case "upgrade":
+    case "limit":
       try {
-        await withServiceSpending(() => sendMessage(chatId, upgradeMessage()));
+        await withServiceSpending(() => sendMessage(chatId, gate.reply));
       } catch (error) {
         if (isOptedOutError(error)) return c.body(null, 200);
         Sentry.captureException(error);
-        log.error("Upgrade reply failed", {
+        log.error("Limit reply failed", {
           "channel.platform": "linq",
           "channel.event_id": event.event_id,
         });

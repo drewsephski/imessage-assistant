@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 export { receivedAttachments } from "./attachments-schema.js";
-import { bigint, boolean, check, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, } from "drizzle-orm/pg-core";
+import { bigint, boolean, check, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid, } from "drizzle-orm/pg-core";
 // Every chat platform the assistant is reachable on. `linq` is iMessage through Linq
 export const PLATFORMS = ["telegram", "linq"];
 // Links a user's identity on a chat platform to their Clerk user, so inbound messages
@@ -15,6 +15,18 @@ export const channelIdentifiers = pgTable("channel_identifiers", {
     linkedAt: timestamp("linked_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
     uniqueIndex("channel_identifiers_platform_external_user_id_idx").on(table.platform, table.externalUserId),
+]);
+// One row per inbound message counted against a plan's monthly allowance. Identifiers only, never
+// the message itself. The platform's event id makes a redelivery the same message, not a second one.
+export const messageUsage = pgTable("message_usage", {
+    platform: text("platform", { enum: PLATFORMS }).notNull(),
+    eventId: text("event_id").notNull(),
+    clerkUserId: text("clerk_user_id").notNull(),
+    periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+    primaryKey({ columns: [table.platform, table.eventId] }),
+    index("message_usage_owner_period_idx").on(table.clerkUserId, table.periodStart),
 ]);
 // OAuth tokens stay with Composio. Only the server-created account mapping is stored here.
 export const calendarConnections = pgTable("calendar_connections", {

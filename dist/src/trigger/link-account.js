@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/node";
 import { AbortTaskRunError, idempotencyKeys, schemaTask, wait } from "@trigger.dev/sdk";
 import { z } from "zod";
+import { MESSAGE_LIMITS } from "../billing.js";
 import { findChannelLink, linkIdempotencyKey } from "../db/channel-links.js";
 import { db } from "../db/index.js";
 import { channelIdentifiers, PLATFORMS } from "../db/schema.js";
@@ -110,7 +111,7 @@ export const linkChannelAccount = schemaTask({
                         // False when a concurrent flow linked this handle to another Clerk user first
                         "account.link_new": link?.clerkUserId === user.sub,
                     });
-                    await sendMessage("You're connected. Please resend your request; messages sent before sign-in aren't queued. The assistant requires an active Pro plan.");
+                    await sendMessage(`You're connected. Please resend your request; messages sent before sign-in aren't queued. Free accounts include ${MESSAGE_LIMITS.free} messages a month.`);
                     return { status: "linked", clerkUserId: link?.clerkUserId };
                 }
                 switch (token.error) {

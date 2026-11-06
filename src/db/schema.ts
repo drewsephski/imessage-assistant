@@ -8,6 +8,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -41,6 +42,23 @@ export const channelIdentifiers = pgTable(
 
 export type ChannelIdentifier = typeof channelIdentifiers.$inferSelect;
 export type NewChannelIdentifier = typeof channelIdentifiers.$inferInsert;
+
+// One row per inbound message counted against a plan's monthly allowance. Identifiers only, never
+// the message itself. The platform's event id makes a redelivery the same message, not a second one.
+export const messageUsage = pgTable(
+  "message_usage",
+  {
+    platform: text("platform", { enum: PLATFORMS }).notNull(),
+    eventId: text("event_id").notNull(),
+    clerkUserId: text("clerk_user_id").notNull(),
+    periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.platform, table.eventId] }),
+    index("message_usage_owner_period_idx").on(table.clerkUserId, table.periodStart),
+  ],
+);
 
 // OAuth tokens stay with Composio. Only the server-created account mapping is stored here.
 export const calendarConnections = pgTable("calendar_connections", {

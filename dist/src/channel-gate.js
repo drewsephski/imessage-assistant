@@ -1,12 +1,16 @@
 import { timingSafeEqual } from "node:crypto";
 import * as Sentry from "@sentry/node";
 import { idempotencyKeys, tasks } from "@trigger.dev/sdk";
-import { hasProPlan, upgradeUrl } from "./billing.js";
+import { activePlan, limitMessage, MESSAGE_LIMITS, upgradeUrl } from "./billing.js";
 import { findChannelLink, linkIdempotencyKey } from "./db/channel-links.js";
+import { db } from "./db/index.js";
+import { createMessageUsageStore } from "./db/message-usage.js";
 import { log } from "./log.js";
 // What every channel webhook does once it has verified and parsed a platform's message: only
-// messages from users linked to a Clerk account on the Pro plan reach the agent. Unlinked users are
-// sent a sign-in link, linked users without Pro an upgrade link
+// messages from users linked to a Clerk account with allowance left this month reach the agent.
+// Unlinked users are sent a sign-in link, users who have run out are told when it resets and offered
+// an upgrade
+const messageUsage = createMessageUsageStore(db);
 export const secretMatches = (received, expected) => {
     if (!received || !expected)
         return false;
@@ -14,14 +18,9 @@ export const secretMatches = (received, expected) => {
     const b = Buffer.from(expected);
     return a.length === b.length && timingSafeEqual(a, b);
 };
-export const upgradeMessage = () => [
-    "The assistant is available on the Pro plan.",
-    "",
-    `Upgrade here, then send me a message again: ${upgradeUrl()}`,
-].join("\n");
-// Throws when the plan check fails, so the webhook can answer with a non-2xx and the platform
-// redelivers instead of the message being dropped
-export const gateInbound = async ({ platform, externalUserId, chatId, }) => {
+// Throws when the plan or usage check fails, so the webhook can answer with a non-2xx and the
+// platform redelivers instead of the message being dropped
+export const gateInbound = async ({ platform, externalUserId, chatId, eventId, }) => {
     const link = await findChannelLink(platform, externalUserId);
     if (!link) {
         await tasks.trigger("link-channel-account", { platform, externalUserId, chatId }, {
@@ -36,9 +35,16 @@ export const gateInbound = async ({ platform, externalUserId, chatId, }) => {
     }
     // Opaque Clerk id only: attributes this request's logs, errors and spans to the user
     Sentry.setUser({ id: link.clerkUserId });
-    return (await hasProPlan(link.clerkUserId))
+    const plan = await activePlan(link.clerkUserId);
+    const allowed = await messageUsage.claim({
+        clerkUserId: link.clerkUserId,
+        platform,
+        eventId,
+        limit: MESSAGE_LIMITS[plan],
+    });
+    return allowed
         ? { status: "allowed", clerkUserId: link.clerkUserId }
-        : { status: "upgrade" };
+        : { status: "limit", reply: limitMessage(plan, new Date(), upgradeUrl()) };
 };
 // Hands an allowed message to the channel's Trigger.dev webhook endpoint, with the Clerk user id
 // attached. Returns false on failure so the webhook answers non-2xx and the platform redelivers;

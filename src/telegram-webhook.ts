@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/node";
 import { Hono } from "hono";
-import { forwardToTrigger, gateInbound, secretMatches, upgradeMessage } from "./channel-gate.js";
+import { forwardToTrigger, gateInbound, secretMatches } from "./channel-gate.js";
 import { log } from "./log.js";
 import { telegramAttachmentIds, telegramUpdateSchema } from "./telegram-update.js";
 import { attachmentStore } from "./trigger/attachments.js";
@@ -31,6 +31,7 @@ export const telegramWebhook = new Hono().post("/", async (c) => {
       platform: "telegram",
       externalUserId: String(message.from.id),
       chatId: String(message.chat.id),
+      eventId: String(update.update_id),
     });
   } catch (error) {
     // Telegram redelivers on a non-2xx, so a Clerk outage retries instead of dropping the message
@@ -51,9 +52,9 @@ export const telegramWebhook = new Hono().post("/", async (c) => {
   switch (gate.status) {
     case "linking":
       return c.body(null, 200);
-    case "upgrade":
+    case "limit":
       // Replying in the webhook response makes Telegram send the message, with no extra API call
-      return c.json({ method: "sendMessage", chat_id: message.chat.id, text: upgradeMessage() });
+      return c.json({ method: "sendMessage", chat_id: message.chat.id, text: gate.reply });
     case "allowed": {
       // Only signed, gated provider attachment fields establish ownership. Text
       // containing a file ID (or a model tool argument) never grants access.
