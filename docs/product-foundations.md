@@ -46,7 +46,7 @@ Before signup, apply per-source request/byte quotas, attachment limits, and expi
 4. Inspect records using a test account; verify no other account can retrieve them. Check interruption reconciliation and worker retry behavior.
 5. Roll back code before removing schema; leave additive tables in place until data retention and rollback needs are resolved.
 
-The user waived the repository's Greptile requirement for this work. Local review and checks still apply. No deployment or production schema change is implied by completing increment 1 locally.
+Local code review and checks apply to each increment. No deployment or production schema change is implied by completing increment 1 locally.
 
 ## Current implementation status
 

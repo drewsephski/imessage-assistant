@@ -17,7 +17,7 @@ export const spendingPolicySchema = z.strictObject({
   computerLeaseSeconds: z.number().int().min(60).max(1800),
   // An absent operation is denied. These are conservative allowances, not guessed invoices.
   ceilings: z.record(
-    z.string().regex(/^(model|web|computer|messaging|storage):[a-zA-Z0-9._:-]+$/),
+    z.string().regex(/^(model|web|computer|messaging|storage|integration):[a-zA-Z0-9._:-]+$/),
     money,
   ),
 });
@@ -51,7 +51,7 @@ export const readSpendingPolicy = (): SpendingPolicy => {
 
 export const operationCeiling = (policy: SpendingPolicy, operation: string) => {
   const amount = policy.ceilings[operation];
-  if (amount === undefined || (amount === 0n && /^(model|web|computer):/.test(operation))) {
+  if (amount === undefined || (amount === 0n && /^(model|web|computer|integration):/.test(operation))) {
     throw new SpendingDenied("unpriced");
   }
   return amount;

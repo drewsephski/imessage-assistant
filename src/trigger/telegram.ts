@@ -1,6 +1,7 @@
 import { webhook, webhooks } from "@trigger.dev/sdk";
 import { chat } from "@trigger.dev/sdk/ai";
 import { channelAgent, channelSurface } from "./channel-agent.js";
+import { ownedAttachmentLoader } from "./attachments.js";
 import { log } from "./log.js";
 import { deliverTaskReply } from "./task-tracking.js";
 import { spendingNotice, withAllowanceNotice } from "../spending/runtime.js";
@@ -115,16 +116,18 @@ const telegramChannel = chat.channels.custom({
     };
   },
   bind: (update) => ({ chatId: update.message!.chat.id, clerkUserId: update.clerkUserId! }),
-  download: async (url) => {
+  download: async (url, { handle }) => {
     const fileId = fileUrls.fromUrl(url);
-    return fileId === null ? null : { data: await downloadFile(fileId) };
+    return fileId === null ? null : {
+      data: await ownedAttachmentLoader("telegram", handle?.clerkUserId, downloadFile)(fileId),
+    };
   },
   surface: (ctx) => {
     const chatId = ctx.handle?.chatId ?? ctx.event!.message!.chat.id;
     return channelSurface({
       clerkUserId: ctx.handle?.clerkUserId ?? ctx.event!.clerkUserId!,
       maxSendBytes: MAX_UPLOAD_BYTES,
-      loadAttachment: downloadFile,
+      loadAttachment: ownedAttachmentLoader("telegram", ctx.handle?.clerkUserId ?? ctx.event?.clerkUserId, downloadFile),
       sendFile: async (file, caption) => {
         await sendFile(chatId, file, caption);
       },

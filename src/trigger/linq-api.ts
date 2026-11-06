@@ -2,6 +2,7 @@ import Linq, { APIError } from "@linqapp/sdk";
 import type { SupportedContentType } from "@linqapp/sdk/resources/attachments";
 import type { MessageEventV2 } from "@linqapp/sdk/resources/webhooks";
 import { spendingNotice, spendOperation } from "../spending/runtime.js";
+import { downloadBytes } from "./download.js";
 
 // Thin wrappers over the Linq API (iMessage). Sends go to an existing chat id, so replies leave from
 // the line the user wrote to and Linq's own line selection is never bypassed with a pinned `from`
@@ -66,11 +67,7 @@ export const downloadAttachment = async (attachmentId: string) => spendOperation
   if (!attachment.download_url) {
     throw new Error(`Attachment ${attachmentId} has no download URL (status: ${attachment.status})`);
   }
-  const res = await fetch(attachment.download_url);
-  if (!res.ok) {
-    throw new Error(`Attachment download failed: ${res.status}`);
-  }
-  return new Uint8Array(await res.arrayBuffer());
+  return downloadBytes(attachment.download_url, MAX_DOWNLOAD_BYTES);
 });
 
 export type OutgoingFile = { data: Uint8Array; filename: string; mediaType: string };

@@ -10,6 +10,7 @@ import { currentTaskExecution, taskTracking } from "./task-tracking.js";
 import { scopedTools } from "./scoped-tools.js";
 import { withTaskSpending } from "../spending/context.js";
 import { endComputerLeases, resetSpendingNotice } from "../spending/runtime.js";
+import { calendarTools, calendarToolsInstructions, calendarTurnStart } from "./calendar-tools.js";
 
 const MODEL_ID = "claude-opus-5-5";
 
@@ -51,10 +52,11 @@ export const channelAgent = <TId extends string>({
     // The platform's transcript snapshot: a run that boots after the previous one ended
     // loads the conversation from it, so the agent remembers the chat without a database
     storage: defaultStorage,
-    tools: scopedTools({ ...webTools, ...computerTools }),
+    tools: scopedTools({ ...webTools, ...computerTools, ...calendarTools }),
     onTurnStart: async (event) => {
       resetSpendingNotice();
       await tracking.onTurnStart(event);
+      calendarTurnStart(event);
     },
     onTurnComplete: async (event) => {
       try { await endComputerLeases(); } catch (error) { Sentry.captureException(error); }
@@ -83,6 +85,7 @@ export const channelAgent = <TId extends string>({
           `Today is ${new Date().toUTCString()}.`,
           webToolsInstructions,
           computerToolsInstructions,
+          calendarToolsInstructions,
         ].join("\n\n"),
         messages,
         tools,

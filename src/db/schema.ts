@@ -1,10 +1,12 @@
 import { sql } from "drizzle-orm";
+export { receivedAttachments } from "./attachments-schema.js";
 import {
   bigint,
   boolean,
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -39,6 +41,14 @@ export const channelIdentifiers = pgTable(
 
 export type ChannelIdentifier = typeof channelIdentifiers.$inferSelect;
 export type NewChannelIdentifier = typeof channelIdentifiers.$inferInsert;
+
+// OAuth tokens stay with Composio. Only the server-created account mapping is stored here.
+export const calendarConnections = pgTable("calendar_connections", {
+  clerkUserId: text("clerk_user_id").primaryKey(),
+  accountId: text("account_id").notNull().unique(),
+  authConfigId: text("auth_config_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // Limits are server-owned; neither the model nor a customer-facing endpoint can change them.
 export const spendingControls = pgTable(
@@ -90,6 +100,26 @@ export const assistantTasks = pgTable(
     check("assistant_tasks_platform_check", sql`${table.platform} in ('telegram', 'linq')`),
   ],
 );
+
+export const calendarDrafts = pgTable("calendar_drafts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  sourceTaskId: uuid("source_task_id").notNull().unique()
+    .references(() => assistantTasks.id, { onDelete: "cascade" }),
+  accountId: text("account_id").notNull(),
+  confirmationCode: text("confirmation_code").notNull(),
+  // Immutable event details, retained for recovery of an uncertain provider write.
+  event: jsonb("event").$type<{
+    title: string; start: string; end: string; timeZone: string;
+    description?: string; location?: string;
+  }>().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("calendar_drafts_owner_code_idx").on(table.clerkUserId, table.confirmationCode),
+  index("calendar_drafts_expiry_idx").on(table.expiresAt),
+]);
 
 // Each execution keeps its own usage; a retry must not erase the previous attempt's cost.
 // The attempt ID is also a fencing token used by every lifecycle update.
@@ -144,7 +174,7 @@ export const taskAttempts = pgTable(
   ],
 );
 
-export const SPENDING_CATEGORIES = ["model", "web", "computer", "messaging", "storage"] as const;
+export const SPENDING_CATEGORIES = ["model", "web", "computer", "messaging", "storage", "integration"] as const;
 export type SpendingCategory = (typeof SPENDING_CATEGORIES)[number];
 
 // These records deliberately RESTRICT task/attempt deletion. Removing a task must never
@@ -189,8 +219,10 @@ export const spendingReservations = pgTable(
       .on(table.resourceKey)
       .where(sql`${table.resourceKey} is not null and ${table.resourceStoppedAt} is null`),
     check(
-      "spending_reservations_category_check",
-      sql`${table.category} in ('model', 'web', 'computer', 'messaging', 'storage')`,
+      // A new name makes db:push replace the old constraint; this Drizzle version
+      // does not detect an expression-only change on an existing check constraint.
+      "spending_reservations_category_v2_check",
+      sql`${table.category} in ('model', 'web', 'computer', 'messaging', 'storage', 'integration')`,
     ),
     check(
       "spending_reservations_money_check",

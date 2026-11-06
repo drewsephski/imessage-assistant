@@ -30,8 +30,17 @@ JSONL
 | `LINQ_PHONE_NUMBER` | The iMessage button and the number shown beside it. E.164, such as `+14155550123`. |
 | `TELEGRAM_BOT_USERNAME` | The Telegram button (`https://t.me/<username>`). |
 | `CLERK_PUBLISHABLE_KEY` | The account link, which points to the Account Portal's billing page. |
+| `CALENDAR_LANDING_ENABLED` | Set to `true` only after live calendar verification. Also requires both Composio settings; credentials alone do not enable calendar advertising. |
 
 The conversations on the page are illustrative examples, and the product name shown is "Assistant"; both are plain constants at the top of `src/landing.tsx`.
+
+## Calendar and attachment improvements
+
+See [the repository audit](docs/repository-audit.md) for architecture, remaining gaps and priorities, and [user acquisition research](docs/user-acquisition-research.md) for sourced competitor findings and a proposed pilot.
+
+The optional [Google Calendar integration](docs/calendar-integration.md) uses Composio for per-user OAuth, with fixed application-owned tools on both channels: connect, check status, list events, prepare a timed event, and confirm creation. It requires `COMPOSIO_API_KEY`, `COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID`, and the documented spending ceilings. No calendar write occurs until the user sends the saved draft's exact confirmation phrase in a later message. There are no attendee invitations. An uncertain submission is checked rather than automatically written again.
+
+Apply the additive calendar and `received_attachments` tables, plus the replacement spending-category check, before deploying. Attachment access is now registered at verified ingress and checked against the owner and platform for both model and computer downloads. Files from before this rollout need to be attached again; do not infer ownership from transcript text. Download limits apply to actual bytes, not just file metadata. These registrations are not durable file storage.
 
 ## Product foundations
 

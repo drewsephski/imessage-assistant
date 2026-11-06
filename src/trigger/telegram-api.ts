@@ -1,4 +1,5 @@
 import { spendingNotice, spendOperation } from "../spending/runtime.js";
+import { downloadBytes } from "./download.js";
 
 // Thin wrappers over the Telegram Bot API. The bot token lives only in request URLs built here,
 // never in anything stored with the conversation
@@ -43,13 +44,10 @@ export const downloadFile = async (fileId: string) => {
   if (!file_path) {
     throw new Error("getFile returned no file_path");
   }
-  const res = await spendOperation("storage:telegram:download", () => fetch(
-    `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file_path}`
+  return spendOperation("storage:telegram:download", () => downloadBytes(
+    `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file_path}`,
+    MAX_DOWNLOAD_BYTES,
   ));
-  if (!res.ok) {
-    throw new Error(`File download failed: ${res.status}`);
-  }
-  return new Uint8Array(await res.arrayBuffer());
 };
 
 export type OutgoingFile = { data: Uint8Array; filename: string; mediaType: string };
