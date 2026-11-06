@@ -179,7 +179,7 @@ img { display: block; }
   display: inline-flex; align-items: center; gap: .5rem;
   font: 800 1.375rem/1 var(--display); letter-spacing: -.02em; text-decoration: none;
 }
-.mark img { width: 2.25rem; height: 2.25rem; }
+.mark-blob { width: 2.25rem; height: 2.25rem; }
 .quiet { font-weight: 600; font-size: .9375rem; text-decoration: none; }
 .quiet:hover { text-decoration: underline; text-underline-offset: .25em; }
 
@@ -238,7 +238,8 @@ img { display: block; }
 
 .stage-demo { margin-top: clamp(2.5rem, 5vw, 4rem); }
 .blob-hero { right: clamp(0rem, 2vw, 2rem); width: clamp(15rem, 37vw, 33rem); }
-.blob-wow { left: clamp(1.5rem, 6vw, 5rem); width: clamp(4.5rem, 8vw, 7rem); bottom: -.75rem !important; }
+.ledge .mini { --w: clamp(5.5rem, 8.5vw, 8rem); width: var(--w); }
+.ledge .blob-wow { left: 47%; bottom: calc(var(--w) * -.28); }
 
 /* The conversation */
 .threads { display: grid; margin-top: clamp(1.5rem, 3vw, 2.5rem); }
@@ -262,10 +263,10 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 .bubble::after { background: var(--surface); }
 .bubble.me { --fill: var(--blue); color: #fff; transform-origin: 100% 100%; }
 .bubble.me::before { right: calc(-7 * var(--k)); width: calc(20 * var(--k)); border-bottom-left-radius: calc(16 * var(--k)) calc(14 * var(--k)); }
-.bubble.me::after { right: calc(-26 * var(--k)); width: calc(26 * var(--k)); border-bottom-left-radius: calc(10 * var(--k)); }
+.bubble.me::after { right: calc(-12 * var(--k)); width: calc(12 * var(--k)); border-bottom-left-radius: calc(10 * var(--k)); }
 .bubble.them { color: var(--ink); transform-origin: 0 100%; }
 .bubble.them::before { left: calc(-7 * var(--k)); width: calc(20 * var(--k)); border-bottom-right-radius: calc(16 * var(--k)) calc(14 * var(--k)); }
-.bubble.them::after { left: calc(-26 * var(--k)); width: calc(26 * var(--k)); border-bottom-right-radius: calc(10 * var(--k)); }
+.bubble.them::after { left: calc(-12 * var(--k)); width: calc(12 * var(--k)); border-bottom-right-radius: calc(10 * var(--k)); }
 .receipt { align-self: flex-end; font-size: .8125rem; font-weight: 500; color: var(--muted); padding-right: .25rem; }
 
 .chip {
@@ -338,8 +339,8 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 }
 .ability.flip { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
 .ability.flip .blob { order: -1; }
-.blob-wink { right: clamp(2rem, 9vw, 8rem); width: clamp(4.5rem, 7vw, 6.25rem); bottom: -.6rem !important; }
-.blob-sleepy { left: clamp(2.5rem, 10vw, 9rem); width: clamp(4.5rem, 7vw, 6.25rem); bottom: -.6rem !important; }
+.ledge .blob-wink { right: clamp(2rem, 9vw, 8rem); bottom: calc(var(--w) * -.22); }
+.ledge .blob-sleepy { left: clamp(2.5rem, 10vw, 9rem); bottom: calc(var(--w) * -.255); }
 
 /* Getting started: the steps walk down the page */
 .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3rem clamp(1.5rem, 4vw, 3.5rem); margin-top: clamp(2.5rem, 5vw, 4rem); counter-reset: step; }
@@ -352,8 +353,8 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 .step p { margin-top: .6rem; max-width: 22rem; color: var(--muted); text-wrap: pretty; }
 
 /* Closing */
-.stage-close { margin-top: clamp(19rem, 40vw, 33rem); }
-.blob-crew { left: 50%; width: min(92vw, 52rem); margin-left: calc(min(92vw, 52rem) / -2); bottom: -1.5rem !important; }
+.stage-close { margin-top: clamp(12rem, 29vw, 25rem); }
+.ledge .blob-crew { left: 50%; width: min(92vw, 52rem); margin-left: calc(min(92vw, 52rem) / -2); bottom: -1.5rem; }
 .panel.blue {
   --surface: var(--blue);
   --ink: #FFFFFF;
@@ -368,7 +369,7 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 .close-copy a { color: #fff; font-weight: 600; text-underline-offset: .25em; }
 .send {
   --fill: #fff;
-  align-self: flex-end; margin-right: 1.5rem;
+  align-self: flex-end; margin-right: .5em;
   color: var(--blue); font-size: clamp(4.5rem, 14vw, 11rem); text-decoration: none;
   transition: transform .3s var(--spring);
 }
@@ -384,6 +385,8 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 @media (max-width: 58rem) {
   .stage-demo { margin-top: clamp(13rem, 44vw, 23rem); }
   .blob-hero { width: clamp(15rem, 50vw, 26rem); right: 1rem; }
+  .ledge .blob-wow { left: 1.5rem; }
+  .ledge .blob-wink, .ledge .blob-sleepy { display: none; }
   .ability, .ability.flip { grid-template-columns: 1fr; }
   .ability .blob { order: -1; max-width: 17rem; margin-block: -6rem 0; }
   .steps { grid-template-columns: 1fr; }
@@ -617,7 +620,7 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
         </a>
         <header class="wrap top">
           <a class="mark" href="/" aria-label={`${NAME} home`}>
-            <Blob name="hero" class="" size={1200} eager />
+            <Blob name="hero" class="mark-blob" size={1200} eager />
             {NAME}
           </a>
           {accountUrl && (
@@ -658,7 +661,7 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
 
             <div class="stage stage-demo">
               <div class="ledge">
-                <Blob name="mini-wow" class="blob-wow pop" size={480} eager />
+                <Blob name="mini-wow" class="mini blob-wow pop" size={480} eager />
                 <Blob name="hero" class="blob-hero pop" size={1200} eager />
               </div>
               <div class="panel sky">
@@ -693,12 +696,12 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
                 <div class="stage">
                   {ability.blob === "web" && (
                     <div class="ledge">
-                      <Blob name="mini-wink" class="blob-wink pop" size={480} />
+                      <Blob name="mini-wink" class="mini blob-wink pop" size={480} />
                     </div>
                   )}
                   {ability.blob === "memory" && (
                     <div class="ledge">
-                      <Blob name="mini-sleepy" class="blob-sleepy pop" size={480} />
+                      <Blob name="mini-sleepy" class="mini blob-sleepy pop" size={480} />
                     </div>
                   )}
                   <div class={`panel ${ability.tone} ability${index % 2 ? " flip" : ""}`}>
