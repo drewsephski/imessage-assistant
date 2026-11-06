@@ -562,7 +562,10 @@ test("accounting outage fails closed without model or messaging requests", async
 
 test("missing task identity is not implicit permission to spend from service", async () => {
   const runtime = createSpendingRuntime(spending, testPolicy);
-  await assert.rejects(runtime.reserve("messaging:linq:sendMessage"), (error) => error instanceof SpendingDenied && error.reason === "stale");
+  await assert.rejects(
+    runtime.reserve("messaging:linq:sendMessage"),
+    (error) => error instanceof SpendingDenied && error.reason === "stale",
+  );
   assert.equal(await spending.totalExposure(new Date()), 0n);
   await withServiceSpending(() => runtime.reserve("messaging:linq:sendMessage"));
   assert.equal(await spending.totalExposure(new Date()), 2n);
@@ -572,36 +575,90 @@ test("a tool resuming after stop cannot charge a new task or the service account
   const user = `user-${randomUUID()}`;
   const runtime = createSpendingRuntime(spending, testPolicy);
   const tracking = taskTracking("telegram", tasks);
-  const channel = recordingChannelConnector({ ack: null, surface: () => ({ clerkUserId: user }), outbound: () => null });
+  const channel = recordingChannelConnector({
+    ack: null,
+    surface: () => ({ clerkUserId: user }),
+    outbound: () => null,
+  });
   let enter: () => void = () => {};
   let release: () => void = () => {};
   let finishTool: () => void = () => {};
   let finishTurn: () => void = () => {};
-  const entered = new Promise<void>((resolve) => { enter = resolve; });
-  const released = new Promise<void>((resolve) => { release = resolve; });
-  const toolDone = new Promise<void>((resolve) => { finishTool = resolve; });
-  const turnDone = new Promise<void>((resolve) => { finishTurn = resolve; });
+  const entered = new Promise<void>((resolve) => {
+    enter = resolve;
+  });
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const toolDone = new Promise<void>((resolve) => {
+    finishTool = resolve;
+  });
+  const turnDone = new Promise<void>((resolve) => {
+    finishTurn = resolve;
+  });
   let lateDenied = false;
-  const provider = new MockLanguageModelV3({ modelId: "mock-model-id", doStream: async () => ({ stream: simulateReadableStream({ chunks: [
-    { type: "tool-call", toolName: "late", toolCallId: "late-1", input: "{}" },
-    { type: "finish", finishReason: { unified: "tool-calls", raw: undefined }, usage: { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } } },
-  ] }) }) });
+  const provider = new MockLanguageModelV3({
+    modelId: "mock-model-id",
+    doStream: async () => ({
+      stream: simulateReadableStream({
+        chunks: [
+          { type: "tool-call", toolName: "late", toolCallId: "late-1", input: "{}" },
+          {
+            type: "finish",
+            finishReason: { unified: "tool-calls", raw: undefined },
+            usage: {
+              inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+              outputTokens: { total: 1, text: 1, reasoning: 0 },
+            },
+          },
+        ],
+      }),
+    }),
+  });
   const agent = chat.agent({
-    id: `late-spending-${randomUUID()}`, channels: [channel], maxTurns: 1,
-    onTurnStart: async (event) => { resetSpendingNotice(); await tracking.onTurnStart(event); },
-    onTurnComplete: async (event) => { await tracking.onTurnComplete(event); finishTurn(); },
-    tools: scopedTools({ late: tool({ inputSchema: z.object({}), execute: async () => {
-      enter(); await released;
-      try { await runtime.reserve("messaging:linq:sendMessage"); }
-      catch (error) { lateDenied = error instanceof SpendingDenied && error.reason === "stale"; }
-      finally { finishTool(); }
-      return "done";
-    } }) }),
-    run: async ({ messages, tools, signal, streamText }) => streamText({ model: withModelSpending(provider, runtime), messages, tools, abortSignal: signal, maxRetries: 0 }),
+    id: `late-spending-${randomUUID()}`,
+    channels: [channel],
+    maxTurns: 1,
+    onTurnStart: async (event) => {
+      resetSpendingNotice();
+      await tracking.onTurnStart(event);
+    },
+    onTurnComplete: async (event) => {
+      await tracking.onTurnComplete(event);
+      finishTurn();
+    },
+    tools: scopedTools({
+      late: tool({
+        inputSchema: z.object({}),
+        execute: async () => {
+          enter();
+          await released;
+          try {
+            await runtime.reserve("messaging:linq:sendMessage");
+          } catch (error) {
+            lateDenied = error instanceof SpendingDenied && error.reason === "stale";
+          } finally {
+            finishTool();
+          }
+          return "done";
+        },
+      }),
+    }),
+    run: async ({ messages, tools, signal, streamText }) =>
+      streamText({
+        model: withModelSpending(provider, runtime),
+        messages,
+        tools,
+        abortSignal: signal,
+        maxRetries: 0,
+      }),
   });
   const harness = mockChatAgent(agent, { chatId: randomUUID() });
   try {
-    const turn = harness.sendChannelEvent({ event: { text: "Start", threadId: "thread" }, deliveryId: randomUUID() });
+    const turn = harness.sendChannelEvent({
+      event: { text: "Start", threadId: "thread" },
+      deliveryId: randomUUID(),
+    });
     await entered;
     await harness.sendStop();
     await turnDone;
@@ -611,5 +668,8 @@ test("a tool resuming after stop cannot charge a new task or the service account
     assert.equal(lateDenied, true);
     assert.equal(await spending.totalExposure(new Date()), 30n);
     assert.equal(await spending.totalExposure(new Date(), "service"), 0n);
-  } finally { release(); await harness.close(); }
+  } finally {
+    release();
+    await harness.close();
+  }
 });

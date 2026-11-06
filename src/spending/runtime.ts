@@ -27,7 +27,8 @@ export const spendingNotice = () => {
 
 const rememberDenial = (error: unknown) => {
   const context = currentSpendingContext();
-  if (context?.kind === "task" && context.execution.attemptId !== currentTaskExecution()?.attemptId) return;
+  if (context?.kind === "task" && context.execution.attemptId !== currentTaskExecution()?.attemptId)
+    return;
   if (error instanceof SpendingDenied) locals.set(deniedKey, error.reason);
 };
 
@@ -53,8 +54,7 @@ export const createSpendingRuntime = (
       const service = options.service === true || currentSpendingContext()?.kind === "service";
       if (!execution && !service) throw new SpendingDenied("stale");
       const priorDenial = locals.get(deniedKey);
-      if (!service && execution && priorDenial)
-        throw new SpendingDenied(priorDenial);
+      if (!service && execution && priorDenial) throw new SpendingDenied(priorDenial);
       const reservation = await spendingStore.reserve(
         {
           execution: service ? undefined : execution,
