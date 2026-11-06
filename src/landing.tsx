@@ -12,6 +12,10 @@ export type LandingLinks = {
   accountUrl?: string;
 };
 
+// The product's name wherever the page shows it
+const NAME = "Assistant";
+const TITLE = `${NAME}, a personal assistant you text`;
+
 type Chip = { name: string; meta: string; kind: "document" | "photos" };
 
 type Example = {
@@ -37,7 +41,7 @@ const examples: Example[] = [
     id: "tickets",
     tab: "Check a ticket price",
     ask: "Is $212 good for Friday’s show?",
-    reply: "A bit high. The same section is $168 on two other sites.",
+    reply: "A bit high. Same section is $168 elsewhere.",
   },
   {
     id: "receipts",
@@ -105,7 +109,7 @@ const css = `
   --display: "Wix Madefor Display", ui-sans-serif, system-ui, sans-serif;
   --text: "Wix Madefor Text", ui-sans-serif, system-ui, sans-serif;
   --gutter: clamp(1.25rem, 5vw, 3.5rem);
-  --bubble: clamp(1.75rem, min(4.4vw, 7vh), 4rem);
+  --bubble: clamp(1.75rem, min(4.4vw, 6.6vh), 4rem);
   --spring: cubic-bezier(.2, .9, .25, 1.12);
 }
 @media (prefers-color-scheme: dark) {
@@ -248,8 +252,9 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 }
 .tab:hover { color: var(--ink); }
 .tab[aria-selected="true"] { background: var(--ink); color: var(--ground); }
-.actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .6rem; }
-.number { flex-basis: 100%; text-align: right; font-size: .875rem; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; padding-right: .35rem; }
+.actions { display: flex; flex-direction: column; align-items: flex-end; gap: .6rem; }
+.buttons { display: flex; flex-wrap: wrap; gap: .6rem; }
+.number { font-size: .875rem; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; padding-inline: .35rem; }
 
 /* What it does */
 .part { padding-block: clamp(3.5rem, 8vw, 6.5rem); }
@@ -275,7 +280,7 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 .send { margin-top: clamp(1.5rem, 4vw, 3rem); font-size: clamp(3.5rem, 15vw, 11.5rem); text-decoration: none; transition: background-color .15s ease; }
 .send:hover, .send:hover::before { background: var(--blue-deep); }
 .send:focus-visible { outline-color: var(--ink); outline-offset: 6px; border-radius: .74em; }
-.close .receipt { font-size: .9375rem; }
+.close .receipt { font-size: .9375rem; text-align: right; }
 .close .receipt a { color: var(--ink); font-weight: 600; text-underline-offset: .25em; }
 
 /* Footer */
@@ -285,9 +290,8 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 @media (max-width: 52rem) {
   .ability h3, .ability p { grid-column: 1 / -1; }
   .steps { grid-template-columns: 1fr; }
-  .actions { flex: 1 1 100%; justify-content: flex-start; }
-  .actions .btn { flex: 1 1 auto; }
-  .number { text-align: left; padding: 0 0 0 .35rem; }
+  .actions { flex: 1 1 100%; align-items: stretch; }
+  .buttons .btn { flex: 1 1 auto; }
 }
 @media (max-width: 34rem) {
   .bubble { max-width: 94%; }
@@ -447,9 +451,9 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Assistant, a personal assistant you text</title>
+        <title>{TITLE}</title>
         <meta name="description" content={description} />
-        <meta property="og:title" content="Assistant, a personal assistant you text" />
+        <meta property="og:title" content={TITLE} />
         <meta property="og:description" content={description} />
         <meta property="og:type" content="website" />
         <meta name="theme-color" content="#EDF2FA" media="(prefers-color-scheme: light)" />
@@ -476,9 +480,9 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
           Skip to content
         </a>
         <header class="wrap top">
-          <a class="mark" href="/" aria-label="Assistant home">
+          <a class="mark" href="/" aria-label={`${NAME} home`}>
             <BubbleMark />
-            Assistant
+            {NAME}
           </a>
           <div class="top-links">
             {accountUrl && (
@@ -497,21 +501,23 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
                 <p>It has its own computer and the live web, so it sends back the finished thing.</p>
               </div>
               <div class="actions">
-                {imessageUrl && (
-                  <a class="btn btn-primary" href={imessageUrl}>
-                    Text it on iMessage
-                  </a>
-                )}
-                {telegramUrl && (
-                  <a class={imessageUrl ? "btn btn-plain" : "btn btn-primary"} href={telegramUrl}>
-                    Open in Telegram
-                  </a>
-                )}
-                {!imessageUrl && !telegramUrl && accountUrl && (
-                  <a class="btn btn-primary" href={accountUrl}>
-                    Sign in
-                  </a>
-                )}
+                <div class="buttons">
+                  {imessageUrl && (
+                    <a class="btn btn-primary" href={imessageUrl}>
+                      Text it on iMessage
+                    </a>
+                  )}
+                  {telegramUrl && (
+                    <a class={imessageUrl ? "btn btn-plain" : "btn btn-primary"} href={telegramUrl}>
+                      Open in Telegram
+                    </a>
+                  )}
+                  {!imessageUrl && !telegramUrl && accountUrl && (
+                    <a class="btn btn-primary" href={accountUrl}>
+                      Sign in
+                    </a>
+                  )}
+                </div>
                 {imessageNumber && (
                   <span class="number">or text {displayNumber(imessageNumber)}</span>
                 )}
@@ -593,7 +599,9 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
 
         <footer class="wrap">
           <div class="foot">
-            <span>Assistant, {new Date().getUTCFullYear()}</span>
+            <span>
+              {NAME}, {new Date().getUTCFullYear()}
+            </span>
             {accountUrl && <a href={accountUrl}>Account and billing</a>}
           </div>
         </footer>

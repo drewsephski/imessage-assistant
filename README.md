@@ -21,6 +21,18 @@ pnpm exec hono batch - src/app.ts -e pg -e @sentry/node -e @trigger.dev/sdk -e @
 JSONL
 ```
 
+## Landing page
+
+`GET /` serves the public landing page from `src/landing.tsx` (one self-contained response; fonts load from Google Fonts). Its buttons come from configuration, and a button is left off when its value is unset or malformed:
+
+| Variable | Used for |
+| --- | --- |
+| `LINQ_PHONE_NUMBER` | The iMessage button and the number shown beside it. E.164, such as `+14155550123`. |
+| `TELEGRAM_BOT_USERNAME` | The Telegram button (`https://t.me/<username>`). |
+| `CLERK_PUBLISHABLE_KEY` | The account link, which points to the Account Portal's billing page. |
+
+The conversations on the page are illustrative examples, and the product name shown is "Assistant"; both are plain constants at the top of `src/landing.tsx`.
+
 ## Product foundations
 
 See [the implementation plan](docs/product-foundations.md) for sequencing, acceptance criteria, and rollout.
