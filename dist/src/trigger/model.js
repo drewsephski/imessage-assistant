@@ -1,4 +1,5 @@
 import { neon } from "@neon/ai-sdk-provider";
+import { withModelSpending } from "../spending/model.js";
 // AI SDK 7 hands tool-result images to v3 providers as `file-data`, which the Anthropic provider
 // behind the Neon gateway drops with a warning: it only reads images as `image-data`. Convert them
 // back so screenshots and viewed images reach the model. PDFs already work as `file-data`
@@ -23,7 +24,7 @@ const withToolResultImages = (options) => ({
 });
 export const chatModel = (modelId) => {
     const model = neon(modelId);
-    return {
+    return withModelSpending({
         specificationVersion: model.specificationVersion,
         provider: model.provider,
         modelId: model.modelId,
@@ -32,5 +33,5 @@ export const chatModel = (modelId) => {
         },
         doGenerate: (options) => model.doGenerate(withToolResultImages(options)),
         doStream: (options) => model.doStream(withToolResultImages(options)),
-    };
+    });
 };

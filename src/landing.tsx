@@ -235,31 +235,27 @@ main:focus { outline: none; }
 
 /* Hero */
 .hero { padding-top: clamp(1.5rem, 5vw, 4.5rem); }
-/* The copy and its characters are columns that both end at the panel below. The left column never
-   gets narrower than the two buttons side by side. */
-.hero-main {
-  display: grid; grid-template-columns: minmax(26.5rem, 1fr) minmax(0, 1.1fr);
-  column-gap: clamp(1rem, 3vw, 3rem); align-items: end;
-}
-.hero-copy { padding-bottom: clamp(2rem, 3vw, 2.75rem); }
-/* The image has 6% transparent padding per side. Sizing and offsetting it by that much puts the
-   artwork's right edge on the page's right edge, under the nav, and its base behind the panel. */
-.hero-art { position: relative; display: flex; justify-content: flex-end; }
-.blob-hero { flex: none; width: 118%; height: auto; margin: 0 -7.08% -7.08% 0; }
-.hero-art .blob-wow { position: absolute; left: -8%; bottom: calc(var(--w) * -.28); height: auto; }
+.hero-copy { text-align: center; }
+/* The characters stand centered on the panel below, with the image's transparent base behind it.
+   The small one is placed from the center too, so it stays beside the large one at every width. */
+.hero-art { --s: clamp(14rem, 24vw, 21rem); position: relative; display: flex; justify-content: center; margin-top: clamp(1rem, 2vw, 1.5rem); }
+.blob-hero { width: var(--s); height: auto; margin-bottom: calc(var(--s) * -.06); }
+.hero-art .blob-wow { position: absolute; right: calc(50% + var(--s) * .34); bottom: calc(var(--w) * -.28); height: auto; }
 .hero h1 {
   font: 800 clamp(2.875rem, 6.6vw, 5.75rem)/.98 var(--display);
   letter-spacing: -.035em; text-wrap: balance;
 }
+/* Each sentence starts its own line, and wraps within itself when it doesn't fit on one */
+.hero h1 span { display: inline-block; }
 .hero-sub {
-  margin-top: clamp(1.25rem, 2vw, 1.75rem); max-width: 31rem;
+  margin: clamp(1.25rem, 2vw, 1.75rem) auto 0; max-width: 31rem;
   font-size: clamp(1.125rem, 1.6vw, 1.3125rem); line-height: 1.45; color: var(--muted); text-wrap: pretty;
 }
-.buttons { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: clamp(1.5rem, 3vw, 2.25rem); }
+.buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: .75rem; margin-top: clamp(1.5rem, 3vw, 2.25rem); }
 .number { display: block; margin-top: .85rem; font-size: .9375rem; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
-.hero-setup { margin-top: .85rem; max-width: 31rem; font-size: .9375rem; font-weight: 500; color: var(--muted); text-wrap: pretty; }
+.hero-setup { margin: .85rem auto 0; max-width: 36rem; font-size: .9375rem; font-weight: 500; color: var(--muted); text-wrap: pretty; }
 .notice {
-  margin-top: clamp(1.5rem, 3vw, 2.25rem); max-width: 34rem;
+  margin: clamp(1.5rem, 3vw, 2.25rem) auto 0; max-width: 34rem;
   padding: 1rem 1.25rem; border-radius: 1.4rem;
   background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line);
   text-wrap: pretty;
@@ -465,10 +461,6 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 .foot a { text-underline-offset: .25em; }
 
 @media (max-width: 58rem) {
-  .hero-main { grid-template-columns: minmax(0, 1fr); }
-  .hero-copy { padding-bottom: 0; }
-  .blob-hero { --s: clamp(15rem, 50vw, 26rem); width: var(--s); margin: 0 0 calc(var(--s) * -.06); }
-  .hero-art .blob-wow { left: 1.5rem; }
   .ledge .blob-wink, .ledge .blob-sleepy { display: none; }
   .stage-faq { margin-top: clamp(2.5rem, 6vw, 3.5rem); }
   .ability, .ability.flip { grid-template-columns: 1fr; }
@@ -755,48 +747,48 @@ const Page = ({
 
         <main id="main" tabindex={-1}>
           <section class="wrap hero" aria-labelledby="hero-title">
-            <div class="hero-main">
-              <div class="hero-copy">
-                <h1 id="hero-title">Text it what you need. Get the finished thing back.</h1>
-                <p class="hero-sub">
-                  A personal assistant{channels ? ` in ${channels}` : " you text"}, with its own computer and
-                  the live web.
+            <div class="hero-copy">
+              <h1 id="hero-title">
+                <span>Text it what you need.</span> <span>Get the finished thing back.</span>
+              </h1>
+              <p class="hero-sub">
+                A personal assistant{channels ? ` in ${channels}` : " you text"}, with its own computer and
+                the live web.
+              </p>
+              {!start && (
+                <p class="notice" id="chat-unavailable">
+                  <strong>Chat links aren’t available right now.</strong>
+                  There’s nowhere to start a chat from this page yet, so please check back later.
                 </p>
-                {!start && (
-                  <p class="notice" id="chat-unavailable">
-                    <strong>Chat links aren’t available right now.</strong>
-                    There’s nowhere to start a chat from this page yet, so please check back later.
-                  </p>
-                )}
-                {(start || accountUrl) && (
-                  <div class="buttons">
-                    {imessageUrl && (
-                      <a class="btn btn-primary" href={imessageUrl}>
-                        Text it on iMessage
-                      </a>
-                    )}
-                    {telegramUrl && (
-                      <a class={imessageUrl ? "btn btn-plain" : "btn btn-primary"} href={telegramUrl}>
-                        Open in Telegram
-                      </a>
-                    )}
-                    {!start && accountUrl && (
-                      <a class="btn btn-primary" href={accountUrl}>
-                        Account and billing
-                      </a>
-                    )}
-                  </div>
-                )}
-                {imessageNumber && <span class="number">or text {displayNumber(imessageNumber)}</span>}
-                <p class="hero-setup">
-                  Requires an account with an active Pro plan.
-                  {start && " The chat walks you through both."}
-                </p>
-              </div>
-              <div class="hero-art">
-                <Blob name="hero" class="blob-hero pop" size={1200} eager />
-                <Blob name="mini-wow" class="mini blob-wow pop" size={480} eager />
-              </div>
+              )}
+              {(start || accountUrl) && (
+                <div class="buttons">
+                  {imessageUrl && (
+                    <a class="btn btn-primary" href={imessageUrl}>
+                      Text it on iMessage
+                    </a>
+                  )}
+                  {telegramUrl && (
+                    <a class={imessageUrl ? "btn btn-plain" : "btn btn-primary"} href={telegramUrl}>
+                      Open in Telegram
+                    </a>
+                  )}
+                  {!start && accountUrl && (
+                    <a class="btn btn-primary" href={accountUrl}>
+                      Account and billing
+                    </a>
+                  )}
+                </div>
+              )}
+              {imessageNumber && <span class="number">or text {displayNumber(imessageNumber)}</span>}
+              <p class="hero-setup">
+                Requires an account with an active Pro plan.
+                {start && " The chat walks you through both."}
+              </p>
+            </div>
+            <div class="hero-art">
+              <Blob name="hero" class="blob-hero pop" size={1200} eager />
+              <Blob name="mini-wow" class="mini blob-wow pop" size={480} eager />
             </div>
 
             <div class="stage stage-demo">

@@ -2,6 +2,8 @@ import * as Sentry from "@sentry/node";
 import { Hono } from "hono";
 import { forwardToTrigger, gateInbound, upgradeMessage } from "./channel-gate.js";
 import { log } from "./log.js";
+import { withServiceSpending } from "./spending/context.js";
+import { attachmentStore } from "./trigger/attachments.js";
 import { isOptedOutError, isOptOutKeyword, messageText, sendMessage, unwrapWebhook, } from "./trigger/linq-api.js";
 const FORWARD_SECRET_HEADER = "x-linq-forward-secret";
 // Linq's webhook (iMessage) lands here first, and only one-to-one messages that pass the channel
@@ -63,7 +65,7 @@ export const linqWebhook = new Hono().post("/", async (c) => {
             return c.body(null, 200);
         case "upgrade":
             try {
-                await sendMessage(chatId, upgradeMessage());
+                await withServiceSpending(() => sendMessage(chatId, upgradeMessage()));
             }
             catch (error) {
                 if (isOptedOutError(error))
@@ -77,6 +79,11 @@ export const linqWebhook = new Hono().post("/", async (c) => {
             }
             return c.body(null, 200);
         case "allowed": {
+            await attachmentStore.register({
+                clerkUserId: gate.clerkUserId,
+                platform: "linq",
+                fileIds: data.parts.flatMap((part) => part.type === "media" ? [part.id] : []),
+            });
             const forwarded = await forwardToTrigger({
                 platform: "linq",
                 url: process.env.TRIGGER_LINQ_WEBHOOK_URL,

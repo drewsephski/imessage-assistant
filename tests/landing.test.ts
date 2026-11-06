@@ -279,6 +279,13 @@ test("the document structure is navigable", async () => {
   assert.equal(page.match(/<summary><h3>/g)?.length, questions);
 });
 
+test("the headline reads as one sentence pair and the animations come from the served bundle", async () => {
+  const page = await render({ imessageNumber: NUMBER });
+  assert.match(visibleText(page), /Text it what you need\. Get the finished thing back\./);
+  assert.match(page, /<script src="\/landing\.js" defer/);
+  assert.equal(elements(page, "tab-label").length, elements(page, "tab").length);
+});
+
 test("each question disclosure exists without the calendar answer", async () => {
   const page = await render({ imessageNumber: NUMBER });
   assert.equal(page.match(/<details>/g)?.length, 5);

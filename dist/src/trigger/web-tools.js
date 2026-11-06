@@ -1,28 +1,33 @@
 import { AlexandriaTools, scrape } from "firecrawl-aisdk";
+import { spendOperation } from "../spending/runtime.js";
 // Tool results stay in the transcript for later turns, so keep each one bounded
 const MAX_TOOL_OUTPUT_CHARS = 20_000;
-const capOutput = (tool) => ({
-    ...tool,
-    toModelOutput: ({ output }) => {
-        const text = typeof output === "string" ? output : JSON.stringify(output);
-        return {
-            type: "text",
-            value: text.length > MAX_TOOL_OUTPUT_CHARS
-                ? `${text.slice(0, MAX_TOOL_OUTPUT_CHARS)}\n[truncated]`
-                : text,
-        };
-    },
-});
+const capOutput = (name, tool) => {
+    const execute = tool.execute;
+    return {
+        ...tool,
+        execute: execute ? (input, options) => spendOperation(`web:${name}`, async () => execute(input, options)) : undefined,
+        toModelOutput: ({ output }) => {
+            const text = typeof output === "string" ? output : JSON.stringify(output);
+            return {
+                type: "text",
+                value: text.length > MAX_TOOL_OUTPUT_CHARS
+                    ? `${text.slice(0, MAX_TOOL_OUTPUT_CHARS)}\n[truncated]`
+                    : text,
+            };
+        },
+    };
+};
 // Both read FIRECRAWL_API_KEY lazily, on first call, so task indexing works without it.
 // FirecrawlTools() is avoided because it throws at import time when the key is missing
 const alexandria = AlexandriaTools();
 // Neutral names so the model never echoes vendor names back to the user
 export const webTools = {
-    searchWeb: capOutput(alexandria.search),
-    findDataSources: capOutput(alexandria.findTools),
-    runDataSource: capOutput(alexandria.scrape),
-    inspectSavedResult: capOutput(alexandria.bash),
-    readWebPage: capOutput(scrape),
+    searchWeb: capOutput("searchWeb", alexandria.search),
+    findDataSources: capOutput("findDataSources", alexandria.findTools),
+    runDataSource: capOutput("runDataSource", alexandria.scrape),
+    inspectSavedResult: capOutput("inspectSavedResult", alexandria.bash),
+    readWebPage: capOutput("readWebPage", scrape),
 };
 export const webToolsInstructions = `
 ## Live web access

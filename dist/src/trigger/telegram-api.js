@@ -1,7 +1,9 @@
+import { spendingNotice, spendOperation } from "../spending/runtime.js";
+import { downloadBytes } from "./download.js";
 // Thin wrappers over the Telegram Bot API. The bot token lives only in request URLs built here,
 // never in anything stored with the conversation
 const apiUrl = (method) => `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/${method}`;
-const callApi = async (method, body) => {
+const callApi = async (method, body) => spendOperation(`messaging:telegram:${method}`, async () => {
     const res = await fetch(apiUrl(method), body instanceof FormData
         ? { method: "POST", body }
         : {
@@ -14,7 +16,7 @@ const callApi = async (method, body) => {
     }
     const { result } = (await res.json());
     return result;
-};
+}, !(body instanceof FormData) && method === "sendMessage" && body.text === spendingNotice() && spendingNotice() !== undefined);
 export const sendMessage = async (chatId, text) => {
     const { message_id } = await callApi("sendMessage", {
         chat_id: chatId,
@@ -33,11 +35,7 @@ export const downloadFile = async (fileId) => {
     if (!file_path) {
         throw new Error("getFile returned no file_path");
     }
-    const res = await fetch(`https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file_path}`);
-    if (!res.ok) {
-        throw new Error(`File download failed: ${res.status}`);
-    }
-    return new Uint8Array(await res.arrayBuffer());
+    return spendOperation("storage:telegram:download", () => downloadBytes(`https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file_path}`, MAX_DOWNLOAD_BYTES));
 };
 // Images go out as photos so they show inline; everything else as a document, byte for byte
 export const sendFile = async (chatId, file, caption) => {

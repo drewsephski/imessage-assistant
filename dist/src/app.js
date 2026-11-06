@@ -1,14 +1,51 @@
+import { serveStatic } from '@hono/node-server/serve-static';
 import * as Sentry from '@sentry/node';
 import { Hono } from 'hono';
+import { upgradeUrl } from './billing.js';
+import { calendarConfig } from './integrations/composio-calendar.js';
+import { landingPage } from './landing.js';
 import { linqWebhook } from './linq-webhook.js';
 import { telegramWebhook } from './telegram-webhook.js';
 const app = new Hono();
 // Registered first: traces each request and reports unhandled 5xx errors. The automatic
 // Hono integration does the same when instrument.ts is preloaded; requests are deduplicated.
 app.use(Sentry.honoMiddleware(app));
+// Where the landing page sends people. Each value is public by nature (the number and bot people
+// message, the hosted account page) and is left off the page when unset or malformed, so a
+// misconfigured environment shows fewer buttons rather than a broken link.
+const landingLinks = () => {
+    const number = process.env.LINQ_PHONE_NUMBER?.replace(/[\s().-]/g, '');
+    const username = process.env.TELEGRAM_BOT_USERNAME?.replace(/^@/, '');
+    let accountUrl;
+    try {
+        accountUrl = upgradeUrl();
+    }
+    catch {
+        // No (or an unparseable) Clerk publishable key: the page simply has no account link
+    }
+    return {
+        imessageNumber: number && /^\+[1-9]\d{6,14}$/.test(number) ? number : undefined,
+        telegramUsername: username && /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(username) ? username : undefined,
+        accountUrl,
+        // Advertising is a separate rollout choice from installing credentials.
+        calendarEnabled: process.env.CALENDAR_LANDING_ENABLED === 'true' && Boolean(calendarConfig()),
+    };
+};
+// Rendered once: the page only depends on configuration read at startup
+let landing;
 app.get('/', (c) => {
-    return c.text('Hello Railway!');
+    landing ??= landingPage(landingLinks());
+    c.header('Cache-Control', 'public, max-age=300');
+    return c.html(landing);
 });
+// The landing page's script and images. Only these are served from disk, relative to the working
+// directory the server starts in (the repository root, for both `dev` and `start`).
+app.get('/landing.js', serveStatic({ root: './public' }));
+app.use('/blobs/*', async (c, next) => {
+    await next();
+    if (c.res.ok)
+        c.header('Cache-Control', 'public, max-age=86400');
+}, serveStatic({ root: './public' }));
 app.route('/telegram/webhook', telegramWebhook);
 app.route('/linq/webhook', linqWebhook);
 export default app;

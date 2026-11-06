@@ -2,6 +2,8 @@ import * as Sentry from "@sentry/node";
 import { Hono } from "hono";
 import { forwardToTrigger, gateInbound, secretMatches, upgradeMessage } from "./channel-gate.js";
 import { log } from "./log.js";
+import { telegramAttachmentIds, telegramUpdateSchema } from "./telegram-update.js";
+import { attachmentStore } from "./trigger/attachments.js";
 const SECRET_HEADER = "x-telegram-bot-api-secret-token";
 // Telegram's webhook lands here first, and only private-chat messages that pass the channel gate
 // are forwarded to the Trigger.dev endpoint
@@ -11,7 +13,10 @@ export const telegramWebhook = new Hono().post("/", async (c) => {
         log.warn("Webhook rejected: secret mismatch", { "channel.platform": "telegram" });
         return c.text("Unauthorized", 401);
     }
-    const update = await c.req.json();
+    const parsed = telegramUpdateSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success)
+        return c.text("Invalid update", 400);
+    const update = parsed.data;
     const message = update.message;
     // Private chats only; other updates are acknowledged so Telegram doesn't redeliver them
     if (!message?.from || message.chat.type !== "private") {
@@ -46,6 +51,13 @@ export const telegramWebhook = new Hono().post("/", async (c) => {
             // Replying in the webhook response makes Telegram send the message, with no extra API call
             return c.json({ method: "sendMessage", chat_id: message.chat.id, text: upgradeMessage() });
         case "allowed": {
+            // Only signed, gated provider attachment fields establish ownership. Text
+            // containing a file ID (or a model tool argument) never grants access.
+            await attachmentStore.register({
+                clerkUserId: gate.clerkUserId,
+                platform: "telegram",
+                fileIds: telegramAttachmentIds(message),
+            });
             const forwarded = await forwardToTrigger({
                 platform: "telegram",
                 url: process.env.TRIGGER_TELEGRAM_WEBHOOK_URL,
