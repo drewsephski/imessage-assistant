@@ -43,9 +43,9 @@ app.get('/', (c) => {
   return c.html(landing)
 })
 
-// The landing page's images. Only this folder is served from disk, relative to the working
+// The landing page's script and images. Only these are served from disk, relative to the working
 // directory the server starts in (the repository root, for both `dev` and `start`).
-app.get('/faq.js', serveStatic({ root: './public' }))
+app.get('/landing.js', serveStatic({ root: './public' }))
 
 app.use(
   '/blobs/*',
