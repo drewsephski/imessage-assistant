@@ -2,6 +2,7 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import * as Sentry from '@sentry/node'
 import { Hono } from 'hono'
 import { upgradeUrl } from './billing.js'
+import { calendarConfig } from './integrations/composio-calendar.js'
 import { type LandingLinks, landingPage } from './landing.js'
 import { linqWebhook } from './linq-webhook.js'
 import { telegramWebhook } from './telegram-webhook.js'
@@ -28,6 +29,8 @@ const landingLinks = (): LandingLinks => {
     imessageNumber: number && /^\+[1-9]\d{6,14}$/.test(number) ? number : undefined,
     telegramUsername: username && /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(username) ? username : undefined,
     accountUrl,
+    // Advertising is a separate rollout choice from installing credentials.
+    calendarEnabled: process.env.CALENDAR_LANDING_ENABLED === 'true' && Boolean(calendarConfig()),
   }
 }
 

@@ -239,6 +239,9 @@ const sendFile = tool({
       throw new ToolInputError(`${fullPath} is ${size} bytes; the chat accepts at most ${surface.maxSendBytes}.`);
     }
     const data = await sandbox.fs.downloadFile(fullPath);
+    if (data.byteLength > surface.maxSendBytes) {
+      throw new ToolInputError(`The file exceeds the chat's ${surface.maxSendBytes}-byte limit.`);
+    }
     const filename = posix.basename(fullPath);
     await surface.sendFile({ data, filename, mediaType: mediaTypeOf(fullPath) }, caption);
     return { sent: filename, bytes: size };

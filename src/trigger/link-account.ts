@@ -115,6 +115,16 @@ export const linkChannelAccount = schemaTask({
             .values({ platform, externalUserId, clerkUserId: user.sub })
             .onConflictDoNothing();
           const link = await findChannelLink(platform, externalUserId);
+          if (!link) throw new Error("Account link could not be verified");
+          if (link.clerkUserId !== user.sub) {
+            // A concurrent flow won the unique channel identity. Do not claim
+            // the losing browser account was linked or expose its email in chat.
+            log.warn("Account link conflict", { "channel.platform": platform });
+            await sendMessage(
+              "This chat is already connected to a different account. No account was changed. Please contact support if you need help."
+            );
+            return { status: "conflict" as const };
+          }
           // The platform handle isn't logged (a Linq handle is a phone number or email): the
           // Clerk id identifies the user, and the run's tags carry the handle for support lookups
           if (link) Sentry.setUser({ id: link.clerkUserId });
@@ -124,7 +134,7 @@ export const linkChannelAccount = schemaTask({
             "account.link_new": link?.clerkUserId === user.sub,
           });
           await sendMessage(
-            `You're connected${user.email ? ` as ${user.email}` : ""}. Send me a message to get started.`
+            "You're connected. Please resend your request; messages sent before sign-in aren't queued. The assistant requires an active Pro plan."
           );
           return { status: "linked" as const, clerkUserId: link?.clerkUserId };
         }

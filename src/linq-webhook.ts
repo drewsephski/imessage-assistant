@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { forwardToTrigger, gateInbound, upgradeMessage } from "./channel-gate.js";
 import { log } from "./log.js";
 import { withServiceSpending } from "./spending/context.js";
+import { attachmentStore } from "./trigger/attachments.js";
 import {
   isOptedOutError,
   isOptOutKeyword,
@@ -88,6 +89,11 @@ export const linqWebhook = new Hono().post("/", async (c) => {
       }
       return c.body(null, 200);
     case "allowed": {
+      await attachmentStore.register({
+        clerkUserId: gate.clerkUserId,
+        platform: "linq",
+        fileIds: data.parts.flatMap((part) => part.type === "media" ? [part.id] : []),
+      });
       const forwarded = await forwardToTrigger({
         platform: "linq",
         url: process.env.TRIGGER_LINQ_WEBHOOK_URL!,

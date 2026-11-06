@@ -1,4 +1,5 @@
 import { html, raw } from "hono/html";
+import type { Child } from "hono/jsx";
 
 // The public page at "/": what the assistant is and how to start texting it. Styles, script and
 // icons are inline; only the blob characters are separate files, served from public/blobs.
@@ -10,13 +11,16 @@ export type LandingLinks = {
   telegramUsername?: string;
   // Clerk Account Portal page for the account and its plan
   accountUrl?: string;
+  // Whether the Google Calendar connection is configured. Everything about it stays off the page
+  // unless this is true.
+  calendarEnabled?: boolean;
 };
 
 // The product's name wherever the page shows it
 const NAME = "Assistant";
 const TITLE = `${NAME}, a personal assistant you text`;
 
-type Chip = { name: string; meta: string; kind: "document" | "photos" };
+type Chip = { name: string; meta: string; kind: "document" | "photos" | "event" };
 
 type Example = {
   id: string;
@@ -27,37 +31,45 @@ type Example = {
   file?: Chip;
 };
 
-// Illustrative conversations: each one shows a different thing the agent's tools can do
+// Illustrative conversations: each one shows a workflow the agent's tools support. They are not
+// customer results, so they carry no real-looking figures, prices or outcomes.
 const examples: Example[] = [
   {
-    id: "lease",
-    tab: "Sign a lease",
-    attachment: { name: "lease.pdf", meta: "PDF, 6 pages", kind: "document" },
-    ask: "Sign my lease and send it back.",
-    reply: "Signed on page 6, initialed on the rest.",
-    file: { name: "lease-signed.pdf", meta: "PDF, 412 KB", kind: "document" },
+    id: "checklist",
+    tab: "Make a checklist",
+    attachment: { name: "meeting-notes.pdf", meta: "Example attachment", kind: "document" },
+    ask: "Turn these notes into a checklist.",
+    reply: "Here’s the checklist, grouped by topic.",
+    file: { name: "checklist.pdf", meta: "Example file", kind: "document" },
   },
   {
-    id: "tickets",
-    tab: "Check a ticket price",
-    ask: "Is $212 good for Friday’s show?",
-    reply: "A bit high. Same section is $168 elsewhere.",
+    id: "research",
+    tab: "Research and compare",
+    ask: "Compare three project tools and link your sources.",
+    reply: "Here’s a one-page comparison, with the links I used.",
+    file: { name: "tool-comparison.pdf", meta: "Example file", kind: "document" },
   },
   {
     id: "receipts",
     tab: "Total my receipts",
-    attachment: { name: "23 photos", meta: "Receipts, March", kind: "photos" },
+    attachment: { name: "Receipt photos", meta: "Example attachment", kind: "photos" },
     ask: "Turn these receipts into a spreadsheet.",
-    reply: "23 receipts, $1,846.20, sorted by category.",
-    file: { name: "receipts-march.xlsx", meta: "Spreadsheet, 18 KB", kind: "document" },
-  },
-  {
-    id: "flight",
-    tab: "Find a flight",
-    ask: "Cheapest nonstop to Lisbon in May?",
-    reply: "$612 round trip from Newark, May 6 to 14.",
+    reply: "Done. One row per receipt, totaled by category.",
+    file: { name: "receipts.xlsx", meta: "Example spreadsheet", kind: "document" },
   },
 ];
+
+const calendarExample: Example = {
+  id: "event",
+  tab: "Draft a calendar event",
+  ask: "Put Thursday’s client call on my calendar, 3 PM Chicago time.",
+  reply: "Here’s the draft. Nothing is created until you confirm.",
+  file: {
+    name: "confirm calendar <code>",
+    meta: "Reply with the exact command from the draft",
+    kind: "event",
+  },
+};
 
 type BlobName =
   | "hero"
@@ -72,41 +84,54 @@ type BlobName =
   | "mini-wink"
   | "mini-wow";
 
-const abilities: { title: string; body: string; blob: BlobName; tone: string }[] = [
+type Ability = { title: string; body: string; blob: BlobName; tone: string; size?: number };
+
+const abilities: Ability[] = [
   {
     title: "It has its own computer.",
-    body: "Edit, fill in, sign, convert or merge documents. Build spreadsheets, charts, images and PDFs from what you send. It can work through a website that needs clicks, forms or a login. The finished file arrives in the chat.",
+    body: "Convert or merge documents, fill in forms, and build spreadsheets, charts, images and PDFs from what you send. It can click through a website when a task needs it. The finished file arrives in the chat.",
     blob: "computer",
     tone: "butter",
   },
   {
     title: "It reads the live web.",
-    body: "Ticket, flight and hotel prices. What’s in stock and what it costs across stores. Tables tonight, apartments, job postings, reviews, filings and scores, as they stand right now.",
+    body: "Ask it to look something up, compare options or read a page you send. It checks the web when a question needs current facts and shares the links it used. Websites can be wrong or out of date, so check anything important.",
     blob: "web",
     tone: "lilac",
   },
   {
-    title: "It keeps your place.",
-    body: "It remembers the conversation, and your files stay on its computer between messages, whichever app you text from. Files are cleared after a week without use.",
+    title: "It keeps your place in a chat.",
+    body: "Each chat keeps its own history, so a conversation in one app doesn’t carry over to another. Files on its computer are temporary and are wiped after about a week without use, so save what you want to keep.",
     blob: "memory",
     tone: "gum",
   },
 ];
 
-const steps: { title: string; body: string; blob: BlobName }[] = [
+const calendarAbility: Ability = {
+  title: "It drafts calendar events for you to review.",
+  body: "Ask in the chat to connect Google Calendar, then approve access from your own link. It can list upcoming events and draft a new one with an explicit timezone. The event is created on your primary calendar only after you reply with the exact command, confirm calendar <code>. It doesn’t invite anyone.",
+  blob: "step-key",
+  tone: "sky",
+  size: 800,
+};
+
+// `channels` names the apps this deployment can be reached on, such as "iMessage and Telegram"
+const steps = (channels: string): { title: string; body: string; blob: BlobName }[] => [
   {
     title: "Say hi",
-    body: "Send any message on iMessage or Telegram. There’s nothing to install.",
+    body: channels
+      ? `Send any message on ${channels.replace(" and ", " or ")}. There’s no separate app to install.`
+      : "Send any message from a chat link, once one is listed on this page.",
     blob: "step-hi",
   },
   {
     title: "Connect your account",
-    body: "It replies with a sign-in link. Open it, sign in, and the chat is linked to you.",
+    body: "It replies with a sign-in link. Open it, sign in, and the chat is linked to you. If the link expires, send any message to get a new one.",
     blob: "step-key",
   },
   {
-    title: "Go Pro",
-    body: "The assistant is part of the Pro plan, and it sends the upgrade link if you need one. After that, text it what you need.",
+    title: "Go Pro, then ask again",
+    body: "It needs an active Pro plan, and it sends the upgrade link if you don’t have one. Then send your request again: messages sent before you’re set up aren’t queued.",
     blob: "step-pro",
   },
 ];
@@ -171,10 +196,12 @@ img { display: block; }
   background: var(--ink); color: var(--ground); text-decoration: none; font-weight: 600;
 }
 .skip:focus { top: .75rem; z-index: 3; }
+main:focus { outline: none; }
 .wrap { width: min(100%, 84rem); margin-inline: auto; padding-inline: var(--gutter); }
 
 /* Header */
-.top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 1.25rem; }
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; padding-block: 1.25rem; }
+.top-links { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem 1.25rem; }
 .mark {
   display: inline-flex; align-items: center; gap: .5rem;
   font: 800 1.375rem/1 var(--display); letter-spacing: -.02em; text-decoration: none;
@@ -215,6 +242,16 @@ img { display: block; }
 }
 .buttons { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: clamp(1.5rem, 3vw, 2.25rem); }
 .number { display: block; margin-top: .85rem; font-size: .9375rem; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+.hero-setup { margin-top: .85rem; max-width: 31rem; font-size: .9375rem; font-weight: 500; color: var(--muted); text-wrap: pretty; }
+.notice {
+  margin-top: clamp(1.5rem, 3vw, 2.25rem); max-width: 34rem;
+  padding: 1rem 1.25rem; border-radius: 1.4rem;
+  background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line);
+  text-wrap: pretty;
+}
+.notice strong { display: block; font: 700 1.125rem/1.25 var(--display); }
+.notice a { color: var(--link); font-weight: 600; text-underline-offset: .25em; }
+.notice + .buttons { margin-top: 1rem; }
 
 /* A stage is a colored panel with characters standing behind its top edge. The ledge has no
    height, so a character is placed against the panel's top edge and the panel hides its base. */
@@ -308,6 +345,7 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 .tab:hover { background: #fff; }
 .tab:active { transform: scale(.95); }
 .tab[aria-selected="true"] { background: var(--ink); color: #fff; }
+.demo-note { margin-top: clamp(1.25rem, 2.5vw, 2rem); font-size: .875rem; font-weight: 500; color: var(--muted); }
 
 /* Blobs pop up once as they arrive, and squish when you hover them */
 .motion .pop { transform-origin: 50% 100%; transition: transform .7s var(--spring), opacity .2s ease; }
@@ -352,6 +390,31 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 .step h3::before { content: counter(step) ". "; color: var(--link); font-variant-numeric: tabular-nums; }
 .step p { margin-top: .6rem; max-width: 22rem; color: var(--muted); text-wrap: pretty; }
 
+/* Questions. Native disclosures, so they work with a keyboard and without the script */
+.stage-faq { margin-top: clamp(5rem, 9vw, 7.5rem); }
+.faq { display: grid; gap: .75rem; }
+.faq details { border-radius: 1.4rem; background: var(--paper); }
+.faq summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  min-height: 3rem; padding: .9rem 1.25rem; border-radius: 1.4rem;
+  cursor: pointer; list-style: none;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after {
+  content: "+"; flex: none;
+  font: 700 1.625rem/1 var(--display); color: var(--link);
+  transition: transform .25s var(--spring);
+}
+.faq details[open] summary::after { transform: rotate(45deg); }
+.faq h3 { font: 700 clamp(1.125rem, 1.8vw, 1.375rem)/1.2 var(--display); letter-spacing: -.015em; }
+.faq-answer { display: grid; gap: .6rem; max-width: 46rem; padding: 0 1.25rem 1.1rem; color: var(--muted); text-wrap: pretty; }
+.faq-answer a { color: var(--link); font-weight: 600; text-underline-offset: .25em; }
+.faq-answer code {
+  padding: .1em .4em; border-radius: .4em;
+  background: rgb(22 18 63 / .08); color: var(--ink);
+  font: 600 .9em ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap;
+}
+
 /* Closing */
 .stage-close { margin-top: clamp(12rem, 29vw, 25rem); }
 .ledge .blob-crew { left: 50%; width: min(92vw, 52rem); margin-left: calc(min(92vw, 52rem) / -2); bottom: -1.5rem; }
@@ -367,6 +430,8 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 .close-copy h2 { max-width: 11ch; font: 800 clamp(2.75rem, 7vw, 6rem)/.96 var(--display); letter-spacing: -.035em; text-wrap: balance; }
 .close-copy p { margin-top: 1.25rem; font-size: 1.0625rem; color: var(--muted); }
 .close-copy a { color: #fff; font-weight: 600; text-underline-offset: .25em; }
+.close-copy a:focus-visible { outline-color: #fff; }
+.close-copy .close-setup { margin-top: .5rem; font-size: .9375rem; }
 .send {
   --fill: #fff;
   align-self: flex-end; margin-right: .5em;
@@ -387,6 +452,7 @@ html:not(.js) .thread:not(:first-child) { display: none; }
   .blob-hero { width: clamp(15rem, 50vw, 26rem); right: 1rem; }
   .ledge .blob-wow { left: 1.5rem; }
   .ledge .blob-wink, .ledge .blob-sleepy { display: none; }
+  .stage-faq { margin-top: clamp(2.5rem, 6vw, 3.5rem); }
   .ability, .ability.flip { grid-template-columns: 1fr; }
   .ability .blob { order: -1; max-width: 17rem; margin-block: -6rem 0; }
   .steps { grid-template-columns: 1fr; }
@@ -468,10 +534,15 @@ const script = `
   tabs.forEach(function (tab, i) {
     tab.addEventListener("click", function () { select(i, false); });
     tab.addEventListener("keydown", function (event) {
-      var move = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-      if (!move) return;
+      var last = tabs.length - 1;
+      var next =
+        event.key === "ArrowRight" ? (i === last ? 0 : i + 1) :
+        event.key === "ArrowLeft" ? (i === 0 ? last : i - 1) :
+        event.key === "Home" ? 0 :
+        event.key === "End" ? last : -1;
+      if (next < 0) return;
       event.preventDefault();
-      select((i + move + tabs.length) % tabs.length, true);
+      select(next, true);
     });
   });
   if (threads.length) play(threads[0], false);
@@ -519,7 +590,12 @@ const Blob = ({
 );
 
 const ChipIcon = ({ kind }: { kind: Chip["kind"] }) =>
-  kind === "photos" ? (
+  kind === "event" ? (
+    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="4" y="6" width="20" height="18" rx="4" />
+      <path d="M4 12h20M10 3.5V8M18 3.5V8" />
+    </svg>
+  ) : kind === "photos" ? (
     <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <rect x="4" y="5" width="20" height="18" rx="4" />
       <circle cx="10.5" cy="11.5" r="1.8" />
@@ -548,6 +624,7 @@ const Thread = ({ example, first }: { example: Example; first: boolean }) => (
     id={`thread-${example.id}`}
     role="tabpanel"
     aria-labelledby={`tab-${example.id}`}
+    tabindex={0}
   >
     {example.attachment && <ChipBubble chip={example.attachment} side="me" step="attachment" />}
     <p class="bubble me" data-step="ask">
@@ -570,19 +647,39 @@ const Thread = ({ example, first }: { example: Example; first: boolean }) => (
   </div>
 );
 
-const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) => {
+const Question = ({ title, children }: { title: string; children: Child }) => (
+  <details>
+    <summary>
+      <h3>{title}</h3>
+    </summary>
+    <div class="faq-answer">{children}</div>
+  </details>
+);
+
+const Page = ({
+  imessageNumber,
+  telegramUsername,
+  accountUrl,
+  calendarEnabled = false,
+}: LandingLinks) => {
   const imessageUrl = imessageNumber && `sms:${imessageNumber}`;
   const telegramUrl = telegramUsername && `https://t.me/${telegramUsername}`;
-  // The first way in that is configured: iMessage, then Telegram, then the account page
+  // Only the apps this deployment can be reached on are ever named
+  const channels = [imessageUrl && "iMessage", telegramUrl && "Telegram"]
+    .filter(Boolean)
+    .join(" and ");
+  // The first way to reach the assistant that is configured. The account page isn't one: it can't
+  // take a message, so it never gets the "one message away" closing.
   const start = imessageUrl
     ? { href: imessageUrl, label: "Text it on iMessage" }
     : telegramUrl
       ? { href: telegramUrl, label: "Open in Telegram" }
-      : accountUrl
-        ? { href: accountUrl, label: "Sign in" }
-        : undefined;
-  const description =
-    "Text it what you need. It has its own computer and live access to the web, so it sends back the finished file or the answer. Works in iMessage and Telegram.";
+      : undefined;
+  const shownExamples = calendarEnabled ? [...examples, calendarExample] : examples;
+  const shownAbilities = calendarEnabled ? [...abilities, calendarAbility] : abilities;
+  const description = `Text it what you need. It has its own computer and live access to the web, so it sends back the finished file or the answer.${
+    channels ? ` Works in ${channels}.` : ""
+  } Requires an account with an active Pro plan.`;
 
   return (
     <html lang="en">
@@ -623,21 +720,36 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
             <Blob name="hero" class="mark-blob" size={1200} eager />
             {NAME}
           </a>
-          {accountUrl && (
-            <a class="quiet" href={accountUrl}>
-              Account
+          <nav class="top-links" aria-label="On this page">
+            <a class="quiet" href="#how-it-works">
+              How it works
             </a>
-          )}
+            <a class="quiet" href="#questions">
+              Questions
+            </a>
+            {accountUrl && (
+              <a class="quiet" href={accountUrl}>
+                Account
+              </a>
+            )}
+          </nav>
         </header>
 
-        <main id="main">
-          <section class="wrap hero">
+        <main id="main" tabindex={-1}>
+          <section class="wrap hero" aria-labelledby="hero-title">
             <div class="hero-copy">
-              <h1>Text it what you need. Get the finished thing back.</h1>
+              <h1 id="hero-title">Text it what you need. Get the finished thing back.</h1>
               <p class="hero-sub">
-                A personal assistant in iMessage and Telegram, with its own computer and the live web.
+                A personal assistant{channels ? ` in ${channels}` : " you text"}, with its own computer and
+                the live web.
               </p>
-              {(imessageUrl || telegramUrl || accountUrl) && (
+              {!start && (
+                <p class="notice" id="chat-unavailable">
+                  <strong>Chat links aren’t available right now.</strong>
+                  There’s nowhere to start a chat from this page yet, so please check back later.
+                </p>
+              )}
+              {(start || accountUrl) && (
                 <div class="buttons">
                   {imessageUrl && (
                     <a class="btn btn-primary" href={imessageUrl}>
@@ -649,14 +761,18 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
                       Open in Telegram
                     </a>
                   )}
-                  {!imessageUrl && !telegramUrl && accountUrl && (
+                  {!start && accountUrl && (
                     <a class="btn btn-primary" href={accountUrl}>
-                      Sign in
+                      Account and billing
                     </a>
                   )}
                 </div>
               )}
               {imessageNumber && <span class="number">or text {displayNumber(imessageNumber)}</span>}
+              <p class="hero-setup">
+                Requires an account with an active Pro plan.
+                {start && " The chat walks you through both."}
+              </p>
             </div>
 
             <div class="stage stage-demo">
@@ -665,8 +781,8 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
                 <Blob name="hero" class="blob-hero pop" size={1200} eager />
               </div>
               <div class="panel sky">
-                <div class="tabs" role="tablist" aria-label="Example conversations">
-                  {examples.map((example, index) => (
+                <div class="tabs" role="tablist" aria-label="Illustrative example conversations">
+                  {shownExamples.map((example, index) => (
                     <button
                       type="button"
                       class="tab"
@@ -681,18 +797,21 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
                   ))}
                 </div>
                 <div class="threads">
-                  {examples.map((example, index) => (
+                  {shownExamples.map((example, index) => (
                     <Thread example={example} first={index === 0} />
                   ))}
                 </div>
+                <p class="demo-note">
+                  Illustrative examples of supported tasks, not real conversations or customer results.
+                </p>
               </div>
             </div>
           </section>
 
-          <section class="wrap part">
-            <h2>Ask for the result, not the how-to.</h2>
+          <section class="wrap part" aria-labelledby="abilities-title">
+            <h2 id="abilities-title">Ask for the result, not the how-to.</h2>
             <div class="abilities">
-              {abilities.map((ability, index) => (
+              {shownAbilities.map((ability, index) => (
                 <div class="stage">
                   {ability.blob === "web" && (
                     <div class="ledge">
@@ -709,17 +828,17 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
                       <h3>{ability.title}</h3>
                       <p>{ability.body}</p>
                     </div>
-                    <Blob name={ability.blob} class="blob pop" />
+                    <Blob name={ability.blob} class="blob pop" size={ability.size} />
                   </div>
                 </div>
               ))}
             </div>
           </section>
 
-          <section class="wrap part">
-            <h2>Start with a text.</h2>
+          <section class="wrap part" id="how-it-works" aria-labelledby="how-it-works-title">
+            <h2 id="how-it-works-title">Start with a text.</h2>
             <ol class="steps">
-              {steps.map((step) => (
+              {steps(channels).map((step) => (
                 <li class="step">
                   <Blob name={step.blob} class="blob pop" size={800} />
                   <h3>{step.title}</h3>
@@ -727,6 +846,76 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
                 </li>
               ))}
             </ol>
+          </section>
+
+          <section class="wrap part" id="questions" aria-labelledby="questions-title">
+            <h2 id="questions-title">Before you start.</h2>
+            <div class="stage stage-faq">
+              <div class="ledge">
+                <Blob name="mini-wink" class="mini blob-wink pop" size={480} />
+              </div>
+              <div class="panel lilac faq">
+                <Question title="What do I need to start?">
+                  <p>
+                    An account with an active Pro plan. Send a message and it replies with a sign-in
+                    link. If your account doesn’t have Pro when you message it again, it sends an
+                    upgrade link.
+                  </p>
+                </Question>
+                <Question title="Why do I have to send my first request again?">
+                  <p>
+                    Messages sent before you’re signed in and on Pro aren’t queued or replayed. Once
+                    your plan is active, send your request again and it will start working on it.
+                  </p>
+                </Question>
+                <Question title="What does it cost?">
+                  <p>
+                    The assistant is part of the Pro plan. This page doesn’t list a price
+                    {accountUrl ? (
+                      <>
+                        ; plan details are on your <a href={accountUrl}>account and billing page</a>.
+                      </>
+                    ) : (
+                      "."
+                    )}{" "}
+                    Usage limits apply, so a large or costly request may be stopped.
+                  </p>
+                </Question>
+                <Question title="What does it keep, and for how long?">
+                  <p>
+                    Each chat keeps its own history, and a conversation in one app doesn’t carry over
+                    to another.
+                  </p>
+                  <p>
+                    Files on its computer are temporary. They’re wiped after about a week without use,
+                    so save anything you want to keep from the chat.
+                  </p>
+                </Question>
+                <Question title="Should I check its work?">
+                  <p>
+                    Yes. Review files and answers before you rely on them. Answers about the web come
+                    from the pages it finds, which can be wrong or out of date.
+                  </p>
+                </Question>
+                {calendarEnabled && (
+                  <Question title="How does Google Calendar work?">
+                    <p>
+                      Ask in the chat to connect your calendar, then approve access from the personal
+                      link it sends. It can list upcoming events and draft a new one with an explicit
+                      timezone.
+                    </p>
+                    <p>
+                      Review the draft. The event is created only after you reply with the exact
+                      command it gives you: <code>confirm calendar {"<code>"}</code>.
+                    </p>
+                    <p>
+                      It only uses your primary Google calendar. It doesn’t add attendees, invite
+                      anyone or send anything on its own.
+                    </p>
+                  </Question>
+                )}
+              </div>
+            </div>
           </section>
 
           {start && (
@@ -739,17 +928,22 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
                   <div class="close-copy">
                     <h2>It’s one message away.</h2>
                     <p>
-                      {imessageNumber
-                        ? `Text it on iMessage at ${displayNumber(imessageNumber)}`
-                        : start.label}
+                      {imessageNumber ? (
+                        `Text it on iMessage at ${displayNumber(imessageNumber)}`
+                      ) : (
+                        <a href={start.href}>{start.label}</a>
+                      )}
                       {imessageUrl && telegramUrl && (
                         <>
                           , or <a href={telegramUrl}>open in Telegram</a>
                         </>
                       )}
                     </p>
+                    <p class="close-setup">
+                      You’ll sign in first, and your account needs an active Pro plan.
+                    </p>
                   </div>
-                  <a class="bubble me send" href={start.href} aria-label={start.label}>
+                  <a class="bubble me send" href={start.href} aria-label={`Say Hi: ${start.label}`}>
                     Hi
                   </a>
                 </div>

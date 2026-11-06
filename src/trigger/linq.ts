@@ -2,6 +2,7 @@ import { webhook, webhooks } from "@trigger.dev/sdk";
 import { chat } from "@trigger.dev/sdk/ai";
 import type { MessageReceivedWebhookEvent } from "@linqapp/sdk/resources/webhooks";
 import { channelAgent, channelSurface } from "./channel-agent.js";
+import { ownedAttachmentLoader } from "./attachments.js";
 import { channelFileUrls, splitMessage, toUserMessage } from "./channel-messages.js";
 import { log } from "./log.js";
 import { deliverTaskReply, recordTaskDelivery } from "./task-tracking.js";
@@ -85,16 +86,18 @@ const linqChannel = chat.channels.custom({
     };
   },
   bind: (event) => ({ chatId: event.data.chat.id, clerkUserId: event.clerkUserId! }),
-  download: async (url) => {
+  download: async (url, { handle }) => {
     const attachmentId = fileUrls.fromUrl(url);
-    return attachmentId === null ? null : { data: await downloadAttachment(attachmentId) };
+    return attachmentId === null ? null : {
+      data: await ownedAttachmentLoader("linq", handle?.clerkUserId, downloadAttachment)(attachmentId),
+    };
   },
   surface: (ctx) => {
     const chatId = chatIdOf(ctx);
     return channelSurface({
       clerkUserId: ctx.handle?.clerkUserId ?? ctx.event!.clerkUserId!,
       maxSendBytes: MAX_UPLOAD_BYTES,
-      loadAttachment: downloadAttachment,
+      loadAttachment: ownedAttachmentLoader("linq", ctx.handle?.clerkUserId ?? ctx.event?.clerkUserId, downloadAttachment),
       sendFile: async (file, caption) => {
         await sendFile(chatId, file, caption);
       },

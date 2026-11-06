@@ -63,6 +63,21 @@ const operation = (execution?: TaskExecution) => ({
   operationKey: randomUUID(),
 });
 
+test("calendar integration reservations reach the durable ledger and remain owner-scoped", async () => {
+  const execution = await task();
+  const policy = testPolicy({ ceilings: { "integration:calendar.create": "30" } });
+  const reservation = await spending.reserve({
+    execution, operation: "integration:calendar.create", operationKey: randomUUID(),
+  }, policy);
+  const [row] = await db.select().from(spendingReservations).where(eq(spendingReservations.id, reservation.id));
+  assert.equal(row?.category, "integration");
+  assert.equal(row?.controlId, userControlId(execution.clerkUserId));
+  assert.equal(row?.taskId, execution.taskId);
+  await assert.rejects(spending.reserve({
+    operation: "integration:calendar.create", operationKey: randomUUID(),
+  }, policy));
+});
+
 test("simultaneous work on both channels shares one atomic user allowance", async () => {
   const user = `user-${randomUUID()}`;
   const first = await task(input(user));
