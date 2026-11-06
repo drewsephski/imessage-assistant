@@ -11,6 +11,8 @@ This increment enforces conservative **application allowances** in integer micro
 - Settlements are idempotent, owner-scoped operator actions. Actual repeated provider work gets separate reservations. A provider-confirmed cost above a ceiling is recorded in full and pauses global/user admission until investigated.
 - Spending rows restrict task/attempt deletion. Cleanup must preserve financial liabilities, including after user data is removed or anonymized.
 
+Every asynchronous tool execution keeps its original task identity and abort signal. If it resumes after a user stop or a newer turn starts, it cannot borrow that newer task's identity or spend from the service account. Service messages require an explicit server-only service context; missing task identity is not permission to spend.
+
 The installed Neon provider does not expose a normalized dollar charge, and the current web tools can have variable provider/capability costs. The app therefore does **not** automatically convert tokens or a successful tool call into a guessed invoice. It reserves conservative, versioned operation allowances and retains them for reconciliation. This is intentionally stricter than charging only successful answers.
 
 ## Configuration
