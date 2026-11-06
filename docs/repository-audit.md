@@ -2,6 +2,8 @@
 
 Audited November 6, 2026, starting at commit `d4b43dc` with a clean working tree. This report describes source code and local verification. It does not assert that this checkout, schema, or configuration is deployed. Acquisition evidence and hypotheses are in [user acquisition research](user-acquisition-research.md); connector setup and limits are in [calendar integration](calendar-integration.md).
 
+**Later deployment update:** commit `304efd7` was subsequently deployed under a separate user instruction. Railway success and the updated public landing page were rechecked; the deployment report records the production schema push and Trigger.dev version `20261106.4`. Calendar remains disabled and real channel/calendar acceptance tests remain outstanding. See the [production rollout update](calendar-integration.md#production-rollout-update-2026-11-06), which supersedes this audit's historical local-only rollout statements. Production spending operation amounts are placeholders, not verified provider prices.
+
 ## Product and architecture
 
 This is a personal assistant reached through one-to-one iMessage conversations (Linq) or private Telegram chats. Users link their messaging identity to a Clerk account and need an active Pro subscription. The assistant can research the live web, read supplied files, run code on a user-specific Linux computer, and return text or files.

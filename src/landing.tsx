@@ -961,6 +961,7 @@ const Page = ({
           </div>
         </footer>
         <script>{raw(script)}</script>
+        <script src="/faq.js" defer />
       </body>
     </html>
   );

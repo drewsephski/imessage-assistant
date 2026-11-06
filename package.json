@@ -9,10 +9,11 @@
     "test:db": "tsx --test tests/db/*.test.ts",
     "spending": "tsx --env-file=.env scripts/spending.ts",
     "dev": "tsx watch --env-file=.env --import ./src/instrument.ts src/index.ts",
-    "build": "tsc",
+    "build": "pnpm build:faq && tsc",
     "start": "node --import ./dist/src/instrument.js dist/src/index.js",
     "db:studio": "node --env-file=.env ./node_modules/drizzle-kit/bin.cjs studio",
-    "db:push": "node --env-file=.env ./node_modules/drizzle-kit/bin.cjs push"
+    "db:push": "node --env-file=.env ./node_modules/drizzle-kit/bin.cjs push",
+    "build:faq": "esbuild scripts/browser/faq.ts --bundle --minify --format=iife --outfile=public/faq.js"
   },
   "dependencies": {
     "@daytona/sdk": "^0.227.0",
@@ -27,6 +28,7 @@
     "drizzle-orm": "^0.45.4",
     "firecrawl-aisdk": "^0.13.1",
     "hono": "^4.13.14",
+    "motion": "^14.10.1",
     "pg": "^8.23.1",
     "zod": "^4.6.7"
   },
@@ -38,6 +40,7 @@
     "@types/node": "^26.1.1",
     "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.31.11",
+    "esbuild": "^0.28.2",
     "tsx": "^4.23.0",
     "typescript": "^7.0.2"
   }
