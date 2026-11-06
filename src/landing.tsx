@@ -1,5 +1,6 @@
 import { html, raw } from "hono/html";
 import type { Child } from "hono/jsx";
+import { MESSAGE_LIMITS } from "./billing.js";
 
 // The public page at "/": what the assistant is and how to start texting it. Styles, the core script
 // and icons are inline. The blob characters are served from public/blobs, and the Motion animations
@@ -12,6 +13,8 @@ export type LandingLinks = {
   telegramUsername?: string;
   // Clerk Account Portal page for the account and its plan
   accountUrl?: string;
+  // The plans page, left off when Clerk isn't configured because it can't load plans without it
+  pricingUrl?: string;
   // Whether the Google Calendar connection is configured. Everything about it stays off the page
   // unless this is true.
   calendarEnabled?: boolean;
@@ -131,8 +134,8 @@ const steps = (channels: string): { title: string; body: string; blob: BlobName 
     blob: "step-key",
   },
   {
-    title: "Go Pro, then ask again",
-    body: "It needs an active Pro plan, and it sends the upgrade link if you don’t have one. Then send your request again: messages sent before you’re set up aren’t queued.",
+    title: "Ask again",
+    body: `Send your request again: messages sent before you’re set up aren’t queued. Your account includes ${MESSAGE_LIMITS.free} free messages a month, and it sends an upgrade link when they run out.`,
     blob: "step-pro",
   },
 ];
@@ -670,6 +673,7 @@ const Page = ({
   imessageNumber,
   telegramUsername,
   accountUrl,
+  pricingUrl,
   calendarEnabled = false,
 }: LandingLinks) => {
   const imessageUrl = imessageNumber && `sms:${imessageNumber}`;
@@ -689,7 +693,7 @@ const Page = ({
   const shownAbilities = calendarEnabled ? [...abilities, calendarAbility] : abilities;
   const description = `Text it what you need. It has its own computer and live access to the web, so it sends back the finished file or the answer.${
     channels ? ` Works in ${channels}.` : ""
-  } Requires an account with an active Pro plan.`;
+  } Free accounts include ${MESSAGE_LIMITS.free} messages a month.`;
 
   return (
     <html lang="en">
@@ -737,6 +741,11 @@ const Page = ({
             <a class="quiet" href="#questions">
               Questions
             </a>
+            {pricingUrl && (
+              <a class="quiet" href={pricingUrl}>
+                Pricing
+              </a>
+            )}
             {accountUrl && (
               <a class="quiet" href={accountUrl}>
                 Account
@@ -782,8 +791,8 @@ const Page = ({
               )}
               {imessageNumber && <span class="number">or text {displayNumber(imessageNumber)}</span>}
               <p class="hero-setup">
-                Requires an account with an active Pro plan.
-                {start && " The chat walks you through both."}
+                Free accounts include {MESSAGE_LIMITS.free} messages a month.
+                {start && " The chat walks you through setup."}
               </p>
             </div>
             <div class="hero-art">
@@ -869,23 +878,24 @@ const Page = ({
               <div class="panel lilac faq">
                 <Question title="What do I need to start?">
                   <p>
-                    An account with an active Pro plan. Send a message and it replies with a sign-in
-                    link. If your account doesn’t have Pro when you message it again, it sends an
-                    upgrade link.
+                    Just an account. Send a message and it replies with a sign-in link. Every account
+                    includes {MESSAGE_LIMITS.free} free messages a month, and it sends an upgrade link
+                    when they run out.
                   </p>
                 </Question>
                 <Question title="Why do I have to send my first request again?">
                   <p>
-                    Messages sent before you’re signed in and on Pro aren’t queued or replayed. Once
-                    your plan is active, send your request again and it will start working on it.
+                    Messages sent before you’re signed in, or after your messages run out, aren’t
+                    queued or replayed. Once you’re set up, send your request again and it will start
+                    working on it.
                   </p>
                 </Question>
                 <Question title="What does it cost?">
                   <p>
-                    The assistant is part of the Pro plan. This page doesn’t list a price
-                    {accountUrl ? (
+                    It’s free for {MESSAGE_LIMITS.free} messages a month, and paid plans include more
+                    {pricingUrl ? (
                       <>
-                        ; plan details are on your <a href={accountUrl}>account and billing page</a>.
+                        : <a href={pricingUrl}>see plans and prices</a>.
                       </>
                     ) : (
                       "."
@@ -952,7 +962,8 @@ const Page = ({
                       )}
                     </p>
                     <p class="close-setup">
-                      You’ll sign in first, and your account needs an active Pro plan.
+                      You’ll sign in first. Your account includes {MESSAGE_LIMITS.free} free messages a
+                      month.
                     </p>
                   </div>
                   <a class="bubble me send" href={start.href} aria-label={`Say Hi: ${start.label}`}>

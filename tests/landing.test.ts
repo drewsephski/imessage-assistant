@@ -58,8 +58,9 @@ test("with no configuration the page says chat is unavailable and links nowhere"
 
   // The explanation of how the product works stays useful in this state
   assert.match(text, /How it works/);
-  assert.match(text, /Requires an account with an active Pro plan\./);
+  assert.match(text, /Free accounts include 5 messages a month\./);
   assert.doesNotMatch(text, /The chat walks you through/);
+  assert.doesNotMatch(text, /see plans and prices/);
 });
 
 test("iMessage and Telegram together: iMessage leads and Telegram stays reachable", async () => {
@@ -112,15 +113,22 @@ test("an account link alone does not pretend to be a way to message the assistan
   assert.match(text, /Chat links aren’t available right now\./);
   assert.equal(closingSend(page), undefined);
   assert.doesNotMatch(text, /one message away/);
-  assert.match(text, /plan details are on your account and billing page\./);
+  assert.match(text, /Account and billing/);
   assert.ok(hrefs(page, "quiet").includes(ACCOUNT), "the header links to the account page");
+});
+
+test("the pricing page is linked from the header and the cost answer when it's available", async () => {
+  const page = await render({ telegramUsername: USERNAME, pricingUrl: "/pricing" });
+  assert.ok(hrefs(page, "quiet").includes("/pricing"));
+  assert.match(visibleText(page), /It’s free for 5 messages a month, and paid plans include more: see plans and prices\./);
+  assert.match(page, /<a href="\/pricing">see plans and prices<\/a>/);
 });
 
 test("the account link is left out everywhere when it isn't configured", async () => {
   const page = await render({ telegramUsername: USERNAME });
   const text = visibleText(page);
-  assert.doesNotMatch(text, /account and billing page/i);
-  assert.match(text, /This page doesn’t list a price\. Usage limits apply/);
+  assert.doesNotMatch(text, /account and billing/i);
+  assert.match(text, /paid plans include more\. Usage limits apply/);
   assert.deepEqual(hrefs(page, "quiet"), ["#how-it-works", "#questions"]);
 });
 
@@ -128,16 +136,17 @@ test("the setup path matches what the channel gate and linking flow do", async (
   const page = await render({ imessageNumber: NUMBER, accountUrl: ACCOUNT });
   const text = visibleText(page);
 
-  assert.match(text, /Requires an account with an active Pro plan\. The chat walks you through both\./);
+  assert.match(text, /Free accounts include 5 messages a month\. The chat walks you through setup\./);
   assert.match(text, /It replies with a sign-in link\./);
   assert.match(text, /If the link expires, send any message to get a new one\./);
-  assert.match(text, /It needs an active Pro plan, and it sends the upgrade link/);
+  assert.match(text, /includes 5 free messages a month, and it sends an upgrade link when they run out\./);
+  assert.doesNotMatch(text, /active Pro plan/);
 
   // The first request is not replayed after sign-in: src/trigger/link-account.ts asks for a resend
-  assert.match(text, /send your request again: messages sent before you’re set up aren’t queued\./);
-  assert.match(text, /Messages sent before you’re signed in and on Pro aren’t queued or replayed\./);
+  assert.match(text, /Send your request again: messages sent before you’re set up aren’t queued\./);
+  assert.match(text, /Messages sent before you’re signed in, or after your messages run out, aren’t queued or replayed\./);
 
-  assert.match(metaDescription(page), /Requires an account with an active Pro plan\./);
+  assert.match(metaDescription(page), /Free accounts include 5 messages a month\./);
 });
 
 test("retention copy matches the computer and per-channel chat behavior", async () => {
