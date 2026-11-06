@@ -1,7 +1,7 @@
 import { html, raw } from "hono/html";
 
-// The public page at "/": what the assistant is and how to start texting it. Everything is inline
-// (styles, script, icons) so the page is one response and needs no static file serving.
+// The public page at "/": what the assistant is and how to start texting it. Styles, script and
+// icons are inline; only the blob characters are separate files, served from public/blobs.
 
 export type LandingLinks = {
   // E.164 number people text on iMessage, e.g. "+14155550123"
@@ -59,33 +59,55 @@ const examples: Example[] = [
   },
 ];
 
-const abilities = [
+type BlobName =
+  | "hero"
+  | "computer"
+  | "web"
+  | "memory"
+  | "crew"
+  | "step-hi"
+  | "step-key"
+  | "step-pro"
+  | "mini-sleepy"
+  | "mini-wink"
+  | "mini-wow";
+
+const abilities: { title: string; body: string; blob: BlobName; tone: string }[] = [
   {
     title: "It has its own computer.",
     body: "Edit, fill in, sign, convert or merge documents. Build spreadsheets, charts, images and PDFs from what you send. It can work through a website that needs clicks, forms or a login. The finished file arrives in the chat.",
+    blob: "computer",
+    tone: "butter",
   },
   {
     title: "It reads the live web.",
     body: "Ticket, flight and hotel prices. What’s in stock and what it costs across stores. Tables tonight, apartments, job postings, reviews, filings and scores, as they stand right now.",
+    blob: "web",
+    tone: "lilac",
   },
   {
     title: "It keeps your place.",
     body: "It remembers the conversation, and your files stay on its computer between messages, whichever app you text from. Files are cleared after a week without use.",
+    blob: "memory",
+    tone: "gum",
   },
 ];
 
-const steps = [
+const steps: { title: string; body: string; blob: BlobName }[] = [
   {
     title: "Say hi",
     body: "Send any message on iMessage or Telegram. There’s nothing to install.",
+    blob: "step-hi",
   },
   {
     title: "Connect your account",
     body: "It replies with a sign-in link. Open it, sign in, and the chat is linked to you.",
+    blob: "step-key",
   },
   {
     title: "Go Pro",
     body: "The assistant is part of the Pro plan, and it sends the upgrade link if you need one. After that, text it what you need.",
+    blob: "step-pro",
   },
 ];
 
@@ -98,34 +120,40 @@ const displayNumber = (e164: string) => {
 const css = `
 :root {
   color-scheme: light dark;
-  --ground: #EDF2FA;
+  --ground: #FAFAFF;
   --paper: #FFFFFF;
-  --ink: #0B1B45;
-  --muted: #56678A;
-  --line: #D3DDEE;
+  --ink: #16123F;
+  --muted: #5A5785;
+  --line: #E1E0F2;
+  --link: #0F55E6;
   --blue: #1463FF;
   --blue-deep: #0E51DB;
-  --link: #0F55E6;
-  --display: "Wix Madefor Display", ui-sans-serif, system-ui, sans-serif;
+  --sky: #DCE8FF;
+  --butter: #FFDD5C;
+  --lilac: #D5CBFF;
+  --gum: #FFC2DC;
+  --surface: var(--ground);
+  --display: "Gabarito", ui-sans-serif, system-ui, sans-serif;
   --text: "Wix Madefor Text", ui-sans-serif, system-ui, sans-serif;
   --gutter: clamp(1.25rem, 5vw, 3.5rem);
-  --bubble: clamp(1.75rem, min(4.4vw, 6.6vh), 4rem);
-  --spring: cubic-bezier(.2, .9, .25, 1.12);
+  --bubble: clamp(1.625rem, 3.5vw, 3.125rem);
+  --spring: cubic-bezier(.2, .9, .25, 1.18);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --ground: #081434;
-    --paper: #17285C;
-    --ink: #EEF3FF;
-    --muted: #9BABD0;
-    --line: #22346B;
-    --link: #8FB4FF;
+    --ground: #110E33;
+    --paper: #231F5C;
+    --ink: #F3F2FF;
+    --muted: #ADAAD8;
+    --line: #2E2A6B;
+    --link: #A8C2FF;
   }
 }
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   margin: 0;
+  overflow-x: clip;
   background: var(--ground);
   color: var(--ink);
   font: 400 1.0625rem/1.6 var(--text);
@@ -135,50 +163,85 @@ body {
 h1, h2, h3, p, ol { margin: 0; }
 ol { padding: 0; list-style: none; }
 a { color: inherit; }
+img { display: block; }
 :focus-visible { outline: 2px solid var(--link); outline-offset: 3px; border-radius: 6px; }
 .skip {
   position: absolute; left: var(--gutter); top: -4rem;
   padding: .6rem 1rem; border-radius: 999px;
   background: var(--ink); color: var(--ground); text-decoration: none; font-weight: 600;
 }
-.skip:focus { top: .75rem; z-index: 2; }
-.wrap { width: min(100%, 77.5rem); margin-inline: auto; padding-inline: var(--gutter); }
+.skip:focus { top: .75rem; z-index: 3; }
+.wrap { width: min(100%, 84rem); margin-inline: auto; padding-inline: var(--gutter); }
 
 /* Header */
 .top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 1.25rem; }
 .mark {
-  display: inline-flex; align-items: center; gap: .55rem;
-  font: 700 1.1875rem/1 var(--display); letter-spacing: -.02em; text-decoration: none;
+  display: inline-flex; align-items: center; gap: .5rem;
+  font: 800 1.375rem/1 var(--display); letter-spacing: -.02em; text-decoration: none;
 }
-.mark svg { width: 1.5rem; height: 1.5rem; color: var(--blue); }
-.top-links { display: flex; align-items: center; gap: clamp(.75rem, 2vw, 1.75rem); }
-.quiet { font-weight: 500; font-size: .9375rem; text-decoration: none; }
+.mark img { width: 2.25rem; height: 2.25rem; }
+.quiet { font-weight: 600; font-size: .9375rem; text-decoration: none; }
 .quiet:hover { text-decoration: underline; text-underline-offset: .25em; }
 
-/* Buttons */
+/* Buttons are squishy, like the characters */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
-  padding: .8rem 1.35rem; border-radius: 999px;
-  font: 600 1rem/1.2 var(--text); text-decoration: none; white-space: nowrap;
-  transition: background-color .15s ease, transform .15s ease;
+  padding: 1rem 1.75rem; border-radius: 999px;
+  font: 700 1.125rem/1.2 var(--display); text-decoration: none; white-space: nowrap;
+  transition: transform .25s var(--spring), background-color .15s ease;
 }
-.btn:active { transform: scale(.98); }
-.btn-primary { background: var(--blue); color: #fff; }
+.btn:hover { transform: translateY(-2px) scale(1.02); }
+.btn:active { transform: scale(.96, .92); }
+.btn-primary {
+  background: var(--blue); color: #fff;
+  box-shadow: inset 0 2px 1px rgb(255 255 255 / .35), inset 0 -4px 6px rgb(6 30 120 / .35), 0 14px 28px -12px rgb(20 99 255 / .75);
+}
 .btn-primary:hover { background: var(--blue-deep); }
-.btn-plain { background: var(--paper); color: var(--ink); }
-.btn-plain:hover { background: color-mix(in srgb, var(--paper) 86%, var(--blue)); }
+.btn-plain {
+  background: var(--paper); color: var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--line), inset 0 -4px 6px rgb(22 18 63 / .05);
+}
 
 /* Hero */
-.hero { padding-block: clamp(1.25rem, 4vh, 3rem) clamp(3rem, 7vw, 5.5rem); }
-.lead { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1.5rem 3rem; }
-.intro {
-  flex: 1 1 22rem; max-width: 37rem;
-  font: 600 clamp(1.3125rem, 2.2vw, 1.8125rem)/1.24 var(--display);
-  letter-spacing: -.022em; text-wrap: balance; color: var(--muted);
+.hero { padding-top: clamp(1.5rem, 5vw, 4.5rem); }
+.hero-copy { position: relative; z-index: 2; max-width: 45rem; }
+.hero h1 {
+  font: 800 clamp(2.875rem, 6.6vw, 5.75rem)/.98 var(--display);
+  letter-spacing: -.035em; text-wrap: balance;
 }
-.intro h1 { display: inline; font: inherit; letter-spacing: inherit; color: var(--ink); }
-.intro p { display: inline; }
-.threads { display: grid; margin-top: clamp(1.75rem, 5vh, 3.25rem); }
+.hero-sub {
+  margin-top: clamp(1.25rem, 2vw, 1.75rem); max-width: 31rem;
+  font-size: clamp(1.125rem, 1.6vw, 1.3125rem); line-height: 1.45; color: var(--muted); text-wrap: pretty;
+}
+.buttons { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: clamp(1.5rem, 3vw, 2.25rem); }
+.number { display: block; margin-top: .85rem; font-size: .9375rem; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* A stage is a colored panel with characters standing behind its top edge. The ledge has no
+   height, so a character is placed against the panel's top edge and the panel hides its base. */
+.stage { position: relative; isolation: isolate; }
+.ledge { position: relative; height: 0; z-index: 0; }
+.ledge img { position: absolute; bottom: -1.75rem; height: auto; }
+.panel {
+  --ink: #16123F;
+  --muted: #47446F;
+  --paper: #FFFFFF;
+  --line: rgb(22 18 63 / .16);
+  --link: #0F55E6;
+  position: relative; z-index: 1;
+  padding: clamp(1.5rem, 4vw, 3.75rem);
+  background: var(--surface); color: var(--ink);
+}
+.panel.sky { --surface: var(--sky); border-radius: 3.5rem 4.5rem 3rem 5rem / 4.5rem 3.5rem 5rem 3rem; }
+.panel.butter { --surface: var(--butter); border-radius: 5rem 3rem 4.5rem 3.5rem / 3.5rem 5rem 3rem 4.5rem; }
+.panel.lilac { --surface: var(--lilac); border-radius: 3rem 5rem 3.5rem 4.5rem / 5rem 3rem 4.5rem 3.5rem; }
+.panel.gum { --surface: var(--gum); border-radius: 4.5rem 3.5rem 5rem 3rem / 3rem 4.5rem 3.5rem 5rem; }
+
+.stage-demo { margin-top: clamp(2.5rem, 5vw, 4rem); }
+.blob-hero { right: clamp(0rem, 2vw, 2rem); width: clamp(15rem, 37vw, 33rem); }
+.blob-wow { left: clamp(1.5rem, 6vw, 5rem); width: clamp(4.5rem, 8vw, 7rem); bottom: -.75rem !important; }
+
+/* The conversation */
+.threads { display: grid; margin-top: clamp(1.5rem, 3vw, 2.5rem); }
 .thread { grid-area: 1 / 1; align-self: end; display: flex; flex-direction: column; gap: .5rem; }
 html:not(.js) .thread:not(:first-child) { display: none; }
 .js .thread:not(.is-active) { visibility: hidden; pointer-events: none; }
@@ -188,29 +251,21 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 
 .bubble {
   --k: .04em;
+  --fill: var(--paper);
   position: relative; max-width: min(100%, 13.5em);
   padding: .34em .62em .4em; border-radius: .74em;
-  font: 600 var(--bubble)/1.07 var(--display); letter-spacing: -.034em; text-wrap: balance;
+  background: var(--fill);
+  font: 700 var(--bubble)/1.07 var(--display); letter-spacing: -.028em; text-wrap: balance;
 }
 .bubble::before, .bubble::after { content: ""; position: absolute; bottom: 0; height: calc(25 * var(--k)); }
-.bubble.me { background: var(--blue); color: #fff; transform-origin: 100% 100%; }
-.bubble.me::before {
-  right: calc(-7 * var(--k)); width: calc(20 * var(--k));
-  background: var(--blue); border-bottom-left-radius: calc(16 * var(--k)) calc(14 * var(--k));
-}
-.bubble.me::after {
-  right: calc(-26 * var(--k)); width: calc(26 * var(--k));
-  background: var(--ground); border-bottom-left-radius: calc(10 * var(--k));
-}
-.bubble.them { background: var(--paper); color: var(--ink); transform-origin: 0 100%; }
-.bubble.them::before {
-  left: calc(-7 * var(--k)); width: calc(20 * var(--k));
-  background: var(--paper); border-bottom-right-radius: calc(16 * var(--k)) calc(14 * var(--k));
-}
-.bubble.them::after {
-  left: calc(-26 * var(--k)); width: calc(26 * var(--k));
-  background: var(--ground); border-bottom-right-radius: calc(10 * var(--k));
-}
+.bubble::before { background: var(--fill); }
+.bubble::after { background: var(--surface); }
+.bubble.me { --fill: var(--blue); color: #fff; transform-origin: 100% 100%; }
+.bubble.me::before { right: calc(-7 * var(--k)); width: calc(20 * var(--k)); border-bottom-left-radius: calc(16 * var(--k)) calc(14 * var(--k)); }
+.bubble.me::after { right: calc(-26 * var(--k)); width: calc(26 * var(--k)); border-bottom-left-radius: calc(10 * var(--k)); }
+.bubble.them { color: var(--ink); transform-origin: 0 100%; }
+.bubble.them::before { left: calc(-7 * var(--k)); width: calc(20 * var(--k)); border-bottom-right-radius: calc(16 * var(--k)) calc(14 * var(--k)); }
+.bubble.them::after { left: calc(-26 * var(--k)); width: calc(26 * var(--k)); border-bottom-right-radius: calc(10 * var(--k)); }
 .receipt { align-self: flex-end; font-size: .8125rem; font-weight: 500; color: var(--muted); padding-right: .25rem; }
 
 .chip {
@@ -218,7 +273,7 @@ html:not(.js) .thread:not(:first-child) { display: none; }
   padding: .6rem 1.05rem .6rem .7rem; border-radius: 1.15rem;
   background: var(--paper); line-height: 1.25;
 }
-.chip.me { background: color-mix(in srgb, var(--blue) 14%, var(--ground)); transform-origin: 100% 100%; }
+.chip.me { background: color-mix(in srgb, var(--blue) 16%, var(--surface)); transform-origin: 100% 100%; }
 .chip.them { transform-origin: 0 100%; }
 .chip svg { flex: none; width: 1.75rem; height: 1.75rem; color: var(--blue); }
 .chip-name { display: block; font-weight: 600; font-size: .9375rem; }
@@ -237,72 +292,118 @@ html:not(.js) .thread:not(:first-child) { display: none; }
 .thread.typing .dots i { animation-play-state: running; }
 @keyframes dot { 0%, 70%, 100% { opacity: .35; } 35% { opacity: 1; } }
 
-/* The one orchestrated moment: the conversation arrives the way a real one does */
 .motion .thread [data-step] { opacity: 0; transform: translateY(.6rem) scale(.92); }
 .motion .thread [data-step].in { opacity: 1; transform: none; transition: opacity .2s ease, transform .42s var(--spring); }
 .motion .thread .receipt[data-step] { transform: none; }
 
-.tabs { display: none; flex-wrap: wrap; gap: .4rem; margin: clamp(1.5rem, 4vh, 2.5rem) 0 0 -.35rem; }
+.tabs { display: none; flex-wrap: wrap; gap: .4rem; }
 .js .tabs { display: flex; }
 .tab {
   appearance: none; border: 0; cursor: pointer;
-  padding: .5rem .9rem; border-radius: 999px; background: transparent; color: var(--muted);
-  font: 500 .9375rem/1.2 var(--text);
-  transition: background-color .15s ease, color .15s ease;
+  padding: .55rem 1rem; border-radius: 999px; background: rgb(255 255 255 / .6); color: var(--ink);
+  font: 600 1rem/1.2 var(--display);
+  transition: background-color .15s ease, color .15s ease, transform .25s var(--spring);
 }
-.tab:hover { color: var(--ink); }
-.tab[aria-selected="true"] { background: var(--ink); color: var(--ground); }
-.actions { display: flex; flex-direction: column; align-items: flex-end; gap: .6rem; }
-.buttons { display: flex; flex-wrap: wrap; gap: .6rem; }
-.number { font-size: .875rem; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; padding-inline: .35rem; }
+.tab:hover { background: #fff; }
+.tab:active { transform: scale(.95); }
+.tab[aria-selected="true"] { background: var(--ink); color: #fff; }
+
+/* Blobs pop up once as they arrive, and squish when you hover them */
+.motion .pop { transform-origin: 50% 100%; transition: transform .7s var(--spring), opacity .2s ease; }
+.motion .pop:not(.up) { opacity: 0; transform: translateY(26%) scale(.9); }
+@keyframes squish {
+  0% { transform: none; }
+  30% { transform: scale(1.07, .92); }
+  60% { transform: scale(.96, 1.05); }
+  100% { transform: none; }
+}
+@media (hover: hover) {
+  .motion .pop.up:hover { animation: squish .55s ease-out; }
+}
 
 /* What it does */
-.part { padding-block: clamp(3.5rem, 8vw, 6.5rem); }
+.part { padding-top: clamp(5rem, 11vw, 9rem); }
 .part > h2 {
-  max-width: 16ch;
-  font: 600 clamp(2.125rem, 5vw, 4rem)/1.03 var(--display); letter-spacing: -.035em; text-wrap: balance;
+  max-width: 15ch;
+  font: 800 clamp(2.5rem, 6vw, 5rem)/.98 var(--display); letter-spacing: -.035em; text-wrap: balance;
 }
-.abilities { margin-top: clamp(2.5rem, 6vw, 5rem); }
-.ability { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 1.5rem; row-gap: .75rem; padding-block: clamp(1.5rem, 3vw, 2.25rem); border-top: 1px solid var(--line); }
-.ability h3 { grid-column: 1 / span 5; font: 600 clamp(1.4375rem, 2.4vw, 1.875rem)/1.15 var(--display); letter-spacing: -.024em; }
-.ability p { grid-column: 7 / span 6; max-width: 34rem; text-wrap: pretty; }
+.abilities { display: grid; gap: clamp(5rem, 9vw, 7.5rem); margin-top: clamp(5.5rem, 9vw, 8.5rem); }
+.ability { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: center; gap: 1rem clamp(1.5rem, 4vw, 4rem); }
+.ability h3 { font: 800 clamp(2rem, 4.2vw, 3.625rem)/1 var(--display); letter-spacing: -.03em; text-wrap: balance; }
+.ability p { margin-top: 1.1rem; max-width: 34rem; font-size: clamp(1.0625rem, 1.4vw, 1.1875rem); line-height: 1.5; text-wrap: pretty; }
+.ability .blob {
+  width: 100%; max-width: 27rem; height: auto; justify-self: center;
+  margin-block: clamp(-9rem, -8vw, -4rem) clamp(-3rem, -2vw, -1rem);
+  filter: drop-shadow(0 1.25rem 1.25rem rgb(22 18 63 / .16));
+}
+.ability.flip { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+.ability.flip .blob { order: -1; }
+.blob-wink { right: clamp(2rem, 9vw, 8rem); width: clamp(4.5rem, 7vw, 6.25rem); bottom: -.6rem !important; }
+.blob-sleepy { left: clamp(2.5rem, 10vw, 9rem); width: clamp(4.5rem, 7vw, 6.25rem); bottom: -.6rem !important; }
 
-/* Getting started */
-.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2.5rem 1.5rem; margin-top: clamp(2.5rem, 6vw, 5rem); counter-reset: step; }
-.step { counter-increment: step; padding-top: 1.25rem; border-top: 1px solid var(--line); }
-.step::before { content: counter(step); display: block; font: 600 .9375rem/1 var(--display); color: var(--link); font-variant-numeric: tabular-nums; }
-.step h3 { margin-top: 1.5rem; font: 600 1.4375rem/1.15 var(--display); letter-spacing: -.02em; }
+/* Getting started: the steps walk down the page */
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3rem clamp(1.5rem, 4vw, 3.5rem); margin-top: clamp(2.5rem, 5vw, 4rem); counter-reset: step; }
+.step { counter-increment: step; }
+.step:nth-child(2) { margin-top: 4rem; }
+.step:nth-child(3) { margin-top: 8rem; }
+.step .blob { width: min(100%, 15rem); height: auto; margin-left: -.5rem; filter: drop-shadow(0 1rem 1rem rgb(22 18 63 / .14)); }
+.step h3 { margin-top: 1.25rem; font: 800 clamp(1.5rem, 2.4vw, 2rem)/1.08 var(--display); letter-spacing: -.024em; }
+.step h3::before { content: counter(step) ". "; color: var(--link); font-variant-numeric: tabular-nums; }
 .step p { margin-top: .6rem; max-width: 22rem; color: var(--muted); text-wrap: pretty; }
 
 /* Closing */
-.close { padding-block: clamp(3.5rem, 8vw, 6.5rem) clamp(4.5rem, 11vw, 9rem); display: flex; flex-direction: column; align-items: flex-end; gap: .9rem; }
-.close h2 { align-self: flex-start; max-width: 20ch; font: 600 clamp(1.3125rem, 2.2vw, 1.8125rem)/1.24 var(--display); letter-spacing: -.022em; color: var(--muted); text-wrap: balance; }
-.send { margin-top: clamp(1.5rem, 4vw, 3rem); font-size: clamp(3.5rem, 15vw, 11.5rem); text-decoration: none; transition: background-color .15s ease; }
-.send:hover, .send:hover::before { background: var(--blue-deep); }
-.send:focus-visible { outline-color: var(--ink); outline-offset: 6px; border-radius: .74em; }
-.close .receipt { font-size: .9375rem; text-align: right; }
-.close .receipt a { color: var(--ink); font-weight: 600; text-underline-offset: .25em; }
+.stage-close { margin-top: clamp(19rem, 40vw, 33rem); }
+.blob-crew { left: 50%; width: min(92vw, 52rem); margin-left: calc(min(92vw, 52rem) / -2); bottom: -1.5rem !important; }
+.panel.blue {
+  --surface: var(--blue);
+  --ink: #FFFFFF;
+  --muted: #E6EEFF;
+  border-radius: 4.5rem 5rem 3.5rem 4rem / 5rem 3.5rem 4.5rem 4rem;
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 2rem 3rem;
+  padding-block: clamp(3rem, 7vw, 6rem);
+}
+.close-copy { flex: 1 1 22rem; }
+.close-copy h2 { max-width: 11ch; font: 800 clamp(2.75rem, 7vw, 6rem)/.96 var(--display); letter-spacing: -.035em; text-wrap: balance; }
+.close-copy p { margin-top: 1.25rem; font-size: 1.0625rem; color: var(--muted); }
+.close-copy a { color: #fff; font-weight: 600; text-underline-offset: .25em; }
+.send {
+  --fill: #fff;
+  align-self: flex-end; margin-right: 1.5rem;
+  color: var(--blue); font-size: clamp(4.5rem, 14vw, 11rem); text-decoration: none;
+  transition: transform .3s var(--spring);
+}
+.send.bubble.me { --fill: #fff; color: var(--blue); }
+.send:hover { transform: scale(1.05) rotate(-2deg); }
+.send:active { transform: scale(.94); }
+.send:focus-visible { outline-color: #fff; outline-offset: 6px; border-radius: .74em; }
 
 /* Footer */
-.foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem 2rem; padding-block: 1.75rem 2.5rem; border-top: 1px solid var(--line); font-size: .875rem; color: var(--muted); }
+.foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem 2rem; padding-block: 2.5rem; font-size: .9375rem; color: var(--muted); }
 .foot a { text-underline-offset: .25em; }
 
-@media (max-width: 52rem) {
-  .ability h3, .ability p { grid-column: 1 / -1; }
+@media (max-width: 58rem) {
+  .stage-demo { margin-top: clamp(13rem, 44vw, 23rem); }
+  .blob-hero { width: clamp(15rem, 50vw, 26rem); right: 1rem; }
+  .ability, .ability.flip { grid-template-columns: 1fr; }
+  .ability .blob { order: -1; max-width: 17rem; margin-block: -6rem 0; }
   .steps { grid-template-columns: 1fr; }
-  .actions { flex: 1 1 100%; align-items: stretch; }
-  .buttons .btn { flex: 1 1 auto; }
+  .step:nth-child(2), .step:nth-child(3) { margin-top: 0; }
+  .step .blob { width: 11rem; }
 }
 @media (max-width: 34rem) {
   .bubble { max-width: 94%; }
+  .send { max-width: none; }
+  .buttons .btn { flex: 1 1 100%; }
+  .panel.sky, .panel.butter, .panel.lilac, .panel.gum, .panel.blue { border-radius: 2.5rem 3rem 2rem 3rem / 3rem 2.5rem 3rem 2rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
 `;
 
-// Plays the active conversation in order (attachment, message, receipt, typing, reply, file) and
-// swaps conversations from the tabs. Without it, the first conversation is simply shown.
+// Plays the active conversation in order (attachment, message, receipt, typing, reply, file),
+// swaps conversations from the tabs, and pops the blobs up. Without it, the first conversation and
+// every blob are simply shown.
 const script = `
 (function () {
   var root = document.documentElement;
@@ -371,13 +472,47 @@ const script = `
     });
   });
   if (threads.length) play(threads[0], false);
+  // Each blob pops up once, when it first scrolls into view
+  var pops = Array.prototype.slice.call(document.querySelectorAll(".pop"));
+  if (!motion) return;
+  if (!("IntersectionObserver" in window)) {
+    pops.forEach(function (pop) { pop.classList.add("up"); });
+    return;
+  }
+  var watcher = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (!entry.isIntersecting) return;
+      entry.target.classList.add("up");
+      watcher.unobserve(entry.target);
+    });
+  }, { threshold: 0.15 });
+  pops.forEach(function (pop) { watcher.observe(pop); });
 })();
 `;
 
-const BubbleMark = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-    <path d="M12 2.5c5.6 0 10 3.9 10 8.9s-4.4 8.9-10 8.9c-1.1 0-2.2-.2-3.2-.4-1.3 1.3-3 2-5 2.1 1.1-1.1 1.7-2.5 1.7-4C3.4 16.3 2 14 2 11.4c0-5 4.4-8.9 10-8.9Z" />
-  </svg>
+// Decorative: every character repeats something the text beside it already says
+const Blob = ({
+  name,
+  class: className,
+  size = 1000,
+  height,
+  eager,
+}: {
+  name: BlobName;
+  class: string;
+  size?: number;
+  height?: number;
+  eager?: boolean;
+}) => (
+  <img
+    class={className}
+    src={`/blobs/${name}.webp`}
+    width={size}
+    height={height ?? size}
+    alt=""
+    decoding="async"
+    loading={eager ? "eager" : "lazy"}
+  />
 );
 
 const ChipIcon = ({ kind }: { kind: Chip["kind"] }) =>
@@ -456,17 +591,18 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
         <meta property="og:title" content={TITLE} />
         <meta property="og:description" content={description} />
         <meta property="og:type" content="website" />
-        <meta name="theme-color" content="#EDF2FA" media="(prefers-color-scheme: light)" />
-        <meta name="theme-color" content="#081434" media="(prefers-color-scheme: dark)" />
+        <meta name="theme-color" content="#FAFAFF" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#110E33" media="(prefers-color-scheme: dark)" />
         <link
           rel="icon"
           href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%231463FF' d='M12 2.5c5.6 0 10 3.9 10 8.9s-4.4 8.9-10 8.9c-1.1 0-2.2-.2-3.2-.4-1.3 1.3-3 2-5 2.1 1.1-1.1 1.7-2.5 1.7-4C3.4 16.3 2 14 2 11.4c0-5 4.4-8.9 10-8.9Z'/%3E%3C/svg%3E"
         />
+        <link rel="preload" as="image" href="/blobs/hero.webp" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Wix+Madefor+Display:wght@500..800&family=Wix+Madefor+Text:wght@400..700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Gabarito:wght@500..900&family=Wix+Madefor+Text:wght@400..700&display=swap"
         />
         <style>{raw(css)}</style>
         <script>
@@ -481,26 +617,24 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
         </a>
         <header class="wrap top">
           <a class="mark" href="/" aria-label={`${NAME} home`}>
-            <BubbleMark />
+            <Blob name="hero" class="" size={1200} eager />
             {NAME}
           </a>
-          <div class="top-links">
-            {accountUrl && (
-              <a class="quiet" href={accountUrl}>
-                Account
-              </a>
-            )}
-          </div>
+          {accountUrl && (
+            <a class="quiet" href={accountUrl}>
+              Account
+            </a>
+          )}
         </header>
 
         <main id="main">
           <section class="wrap hero">
-            <div class="lead">
-              <div class="intro">
-                <h1>A personal assistant in iMessage and Telegram.</h1>{" "}
-                <p>It has its own computer and the live web, so it sends back the finished thing.</p>
-              </div>
-              <div class="actions">
+            <div class="hero-copy">
+              <h1>Text it what you need. Get the finished thing back.</h1>
+              <p class="hero-sub">
+                A personal assistant in iMessage and Telegram, with its own computer and the live web.
+              </p>
+              {(imessageUrl || telegramUrl || accountUrl) && (
                 <div class="buttons">
                   {imessageUrl && (
                     <a class="btn btn-primary" href={imessageUrl}>
@@ -518,80 +652,104 @@ const Page = ({ imessageNumber, telegramUsername, accountUrl }: LandingLinks) =>
                     </a>
                   )}
                 </div>
-                {imessageNumber && (
-                  <span class="number">or text {displayNumber(imessageNumber)}</span>
-                )}
+              )}
+              {imessageNumber && <span class="number">or text {displayNumber(imessageNumber)}</span>}
+            </div>
+
+            <div class="stage stage-demo">
+              <div class="ledge">
+                <Blob name="mini-wow" class="blob-wow pop" size={480} eager />
+                <Blob name="hero" class="blob-hero pop" size={1200} eager />
               </div>
-            </div>
-
-            <div class="threads">
-              {examples.map((example, index) => (
-                <Thread example={example} first={index === 0} />
-              ))}
-            </div>
-
-            <div class="tabs" role="tablist" aria-label="Example conversations">
-              {examples.map((example, index) => (
-                <button
-                  type="button"
-                  class="tab"
-                  role="tab"
-                  id={`tab-${example.id}`}
-                  aria-controls={`thread-${example.id}`}
-                  aria-selected={index === 0 ? "true" : "false"}
-                  tabindex={index === 0 ? 0 : -1}
-                >
-                  {example.tab}
-                </button>
-              ))}
+              <div class="panel sky">
+                <div class="tabs" role="tablist" aria-label="Example conversations">
+                  {examples.map((example, index) => (
+                    <button
+                      type="button"
+                      class="tab"
+                      role="tab"
+                      id={`tab-${example.id}`}
+                      aria-controls={`thread-${example.id}`}
+                      aria-selected={index === 0 ? "true" : "false"}
+                      tabindex={index === 0 ? 0 : -1}
+                    >
+                      {example.tab}
+                    </button>
+                  ))}
+                </div>
+                <div class="threads">
+                  {examples.map((example, index) => (
+                    <Thread example={example} first={index === 0} />
+                  ))}
+                </div>
+              </div>
             </div>
           </section>
 
-          <section class="wrap">
-            <div class="part">
-              <h2>Ask for the result, not the how-to.</h2>
-              <div class="abilities">
-                {abilities.map((ability) => (
-                  <div class="ability">
-                    <h3>{ability.title}</h3>
-                    <p>{ability.body}</p>
+          <section class="wrap part">
+            <h2>Ask for the result, not the how-to.</h2>
+            <div class="abilities">
+              {abilities.map((ability, index) => (
+                <div class="stage">
+                  {ability.blob === "web" && (
+                    <div class="ledge">
+                      <Blob name="mini-wink" class="blob-wink pop" size={480} />
+                    </div>
+                  )}
+                  {ability.blob === "memory" && (
+                    <div class="ledge">
+                      <Blob name="mini-sleepy" class="blob-sleepy pop" size={480} />
+                    </div>
+                  )}
+                  <div class={`panel ${ability.tone} ability${index % 2 ? " flip" : ""}`}>
+                    <div>
+                      <h3>{ability.title}</h3>
+                      <p>{ability.body}</p>
+                    </div>
+                    <Blob name={ability.blob} class="blob pop" />
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
           </section>
 
-          <section class="wrap">
-            <div class="part">
-              <h2>Start with a text.</h2>
-              <ol class="steps">
-                {steps.map((step) => (
-                  <li class="step">
-                    <h3>{step.title}</h3>
-                    <p>{step.body}</p>
-                  </li>
-                ))}
-              </ol>
-            </div>
+          <section class="wrap part">
+            <h2>Start with a text.</h2>
+            <ol class="steps">
+              {steps.map((step) => (
+                <li class="step">
+                  <Blob name={step.blob} class="blob pop" size={800} />
+                  <h3>{step.title}</h3>
+                  <p>{step.body}</p>
+                </li>
+              ))}
+            </ol>
           </section>
 
           {start && (
             <section class="wrap">
-              <div class="close">
-                <h2>It’s one message away.</h2>
-                <a class="bubble me send" href={start.href} aria-label={start.label}>
-                  Hi
-                </a>
-                <span class="receipt">
-                  {imessageNumber
-                    ? `Text it on iMessage at ${displayNumber(imessageNumber)}`
-                    : start.label}
-                  {imessageUrl && telegramUrl && (
-                    <>
-                      , or <a href={telegramUrl}>open in Telegram</a>
-                    </>
-                  )}
-                </span>
+              <div class="stage stage-close">
+                <div class="ledge">
+                  <Blob name="crew" class="blob-crew pop" size={1600} height={1000} />
+                </div>
+                <div class="panel blue">
+                  <div class="close-copy">
+                    <h2>It’s one message away.</h2>
+                    <p>
+                      {imessageNumber
+                        ? `Text it on iMessage at ${displayNumber(imessageNumber)}`
+                        : start.label}
+                      {imessageUrl && telegramUrl && (
+                        <>
+                          , or <a href={telegramUrl}>open in Telegram</a>
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  <a class="bubble me send" href={start.href} aria-label={start.label}>
+                    Hi
+                  </a>
+                </div>
               </div>
             </section>
           )}

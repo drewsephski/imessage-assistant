@@ -1,3 +1,4 @@
+import { serveStatic } from '@hono/node-server/serve-static'
 import * as Sentry from '@sentry/node'
 import { Hono } from 'hono'
 import { upgradeUrl } from './billing.js'
@@ -38,6 +39,18 @@ app.get('/', (c) => {
   c.header('Cache-Control', 'public, max-age=300')
   return c.html(landing)
 })
+
+// The landing page's images. Only this folder is served from disk, relative to the working
+// directory the server starts in (the repository root, for both `dev` and `start`).
+app.use(
+  '/blobs/*',
+  serveStatic({
+    root: './public',
+    onFound: (_path, c) => {
+      c.header('Cache-Control', 'public, max-age=86400')
+    },
+  }),
+)
 
 app.route('/telegram/webhook', telegramWebhook)
 app.route('/linq/webhook', linqWebhook)

@@ -23,7 +23,7 @@ JSONL
 
 ## Landing page
 
-`GET /` serves the public landing page from `src/landing.tsx` (one self-contained response; fonts load from Google Fonts). Its buttons come from configuration, and a button is left off when its value is unset or malformed:
+`GET /` serves the public landing page from `src/landing.tsx` (styles and script are inline; fonts load from Google Fonts). Its blob characters are WebP files in `public/blobs`, served at `/blobs/*` from the directory the server starts in, so start it from the repository root. Its buttons come from configuration, and a button is left off when its value is unset or malformed:
 
 | Variable | Used for |
 | --- | --- |
