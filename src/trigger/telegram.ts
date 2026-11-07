@@ -137,6 +137,8 @@ export const telegramChannel = chat.channels.custom({
     const chatId = ctx.handle?.chatId ?? ctx.event!.message!.chat.id;
     return channelSurface({
       clerkUserId: ctx.handle?.clerkUserId ?? ctx.event!.clerkUserId!,
+      platform: "telegram",
+      chatId: String(chatId),
       maxSendBytes: MAX_UPLOAD_BYTES,
       loadAttachment: ownedAttachmentLoader("telegram", ctx.handle?.clerkUserId ?? ctx.event?.clerkUserId, downloadFile),
       sendFile: async (file, caption) => {

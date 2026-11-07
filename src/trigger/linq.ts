@@ -97,6 +97,8 @@ export const linqChannel = chat.channels.custom({
     const chatId = chatIdOf(ctx);
     return channelSurface({
       clerkUserId: ctx.handle?.clerkUserId ?? ctx.event!.clerkUserId!,
+      platform: "linq",
+      chatId,
       maxSendBytes: MAX_UPLOAD_BYTES,
       loadAttachment: ownedAttachmentLoader("linq", ctx.handle?.clerkUserId ?? ctx.event?.clerkUserId, downloadAttachment),
       sendFile: async (file, caption) => {

@@ -9,6 +9,8 @@ export type PricingConfig = {
   publishableKey: string;
   // The Clerk Frontend API host, which also serves the versions of clerk-js and its UI
   frontendApi: string;
+  // The product's name in the title and header; "Assistant" until one is configured
+  productName?: string;
 };
 
 const css = `
@@ -91,12 +93,12 @@ window.addEventListener("load", async () => {
 
 const description = `Start free with ${MESSAGE_LIMITS.free} messages a month. Upgrade when you need more.`;
 
-const Page = ({ publishableKey, frontendApi }: PricingConfig) => (
+const Page = ({ publishableKey, frontendApi, productName }: PricingConfig) => (
   <html lang="en">
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>Pricing | Assistant</title>
+      <title>Pricing | {productName?.trim() || "Assistant"}</title>
       <meta name="description" content={description} />
       <meta name="theme-color" content="#FAFAFF" media="(prefers-color-scheme: light)" />
       <meta name="theme-color" content="#110E33" media="(prefers-color-scheme: dark)" />
@@ -126,7 +128,7 @@ const Page = ({ publishableKey, frontendApi }: PricingConfig) => (
     <body>
       <header class="wrap top">
         <a class="mark" href="/">
-          Assistant
+          {productName?.trim() || "Assistant"}
         </a>
         <div id="account" />
       </header>

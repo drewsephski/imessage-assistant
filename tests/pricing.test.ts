@@ -34,3 +34,13 @@ test("prices stay in Clerk, and the allowance rules are stated", async () => {
   assert.match(text, /reset on the first of each month/);
   assert.match(text, /Usage limits apply/);
 });
+
+test("the product name comes from configuration and defaults to Assistant", async () => {
+  const plain = await page();
+  assert.match(plain, /<title>Pricing \| Assistant<\/title>/);
+  const named = String(
+    await pricingPage({ publishableKey: "pk_test_abc", frontendApi: "slug-1.clerk.accounts.dev", productName: "Ossie" }),
+  );
+  assert.match(named, /<title>Pricing \| Ossie<\/title>/);
+  assert.match(named, /class="mark" href="\/">\s*Ossie\s*<\/a>/);
+});

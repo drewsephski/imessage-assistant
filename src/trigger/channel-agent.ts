@@ -13,6 +13,11 @@ import { withTaskSpending } from "../spending/context.js";
 import { endComputerLeases, resetSpendingNotice } from "../spending/runtime.js";
 import { calendarTools, calendarToolsInstructions, calendarTurnStart } from "./calendar-tools.js";
 import { fixedTextModel } from "./fixed-text-model.js";
+import { db } from "../db/index.js";
+import { createProfileStore, type ProfileStore } from "../db/profiles.js";
+import { renderProfile } from "../memory/domain.js";
+import { memoryTools, memoryToolsInstructions } from "./memory-tools.js";
+import { reminderTools, reminderToolsInstructions } from "./reminder-tools.js";
 import {
   clearLoopTurn,
   loopCaptureInstructions,
@@ -27,20 +32,31 @@ import {
 
 const MODEL_ID = "claude-opus-5-5";
 
-// What a channel's surface() hands the agent: the computer tools' surface, plus who the chat
-// belongs to so errors, logs and AI spans can be attributed to the user
-export type ChannelSurface = ComputerSurface & { clerkUserId: string };
+// What a channel's surface() hands the agent: the computer tools' surface, who the chat belongs
+// to so errors, logs and AI spans can be attributed to the user, and which chat it is so a
+// reminder set here can be sent back here
+export type ChannelSurface = ComputerSurface & {
+  clerkUserId: string;
+  platform: Platform;
+  chatId: string;
+};
 
 // The sandbox belongs to the Clerk user, so the same files are there whichever platform they
 // write from
 export const channelSurface = ({
   clerkUserId,
   ...surface
-}: Omit<ComputerSurface, "sandboxName"> & { clerkUserId: string }): ChannelSurface => ({
+}: Omit<ComputerSurface, "sandboxName"> & {
+  clerkUserId: string;
+  platform: Platform;
+  chatId: string;
+}): ChannelSurface => ({
   sandboxName: `user-${clerkUserId}`,
   clerkUserId,
   ...surface,
 });
+
+const defaultProfiles = createProfileStore(db);
 
 // The assistant on one chat platform: every channel gets the same model, tools and instructions,
 // and only says which platform it is chatting over
@@ -51,15 +67,17 @@ export const channelAgent = <TId extends string>({
   platformName,
   model = chatModel,
   loopStore,
+  profileStore = defaultProfiles,
 }: {
   id: TId;
   channel: AnyChannelConnector;
   platform: Platform;
   // How the platform is named to the model, e.g. "Telegram" or "iMessage"
   platformName: string;
-  // The provider model and the follow-up store. Tests replace these to run offline
+  // The provider model and the stores. Tests replace these to run offline
   model?: (modelId: string) => LanguageModel;
   loopStore?: LoopStore;
+  profileStore?: ProfileStore;
 }) => {
   const tracking = taskTracking(platform);
   return chat.agent({
@@ -70,7 +88,13 @@ export const channelAgent = <TId extends string>({
     // The platform's transcript snapshot: a run that boots after the previous one ended
     // loads the conversation from it, so the agent remembers the chat without a database
     storage: defaultStorage,
-    tools: scopedTools({ ...webTools, ...computerTools, ...calendarTools }),
+    tools: scopedTools({
+      ...webTools,
+      ...computerTools,
+      ...calendarTools,
+      ...reminderTools(),
+      ...memoryTools(profileStore),
+    }),
     onTurnStart: async (event) => {
       resetSpendingNotice();
       // Cleared first: a rejected duplicate start must not leave the previous turn's reply behind
@@ -157,13 +181,19 @@ export const channelAgent = <TId extends string>({
           });
         }
 
+        // What the user has asked to be remembered, the same on every channel
+        const now = new Date();
+        const profile = await profileStore.get(execution.clerkUserId);
         return streamText({
           ...turnOptions,
           model: model(MODEL_ID),
           // Set per turn so relative requests like "tonight" or "this weekend" resolve correctly
           system: [
             `You are a helpful, concise personal assistant chatting over ${platformName}.`,
-            `Today is ${new Date().toUTCString()}.`,
+            `The current time is ${now.toUTCString()}.`,
+            renderProfile(profile, now),
+            memoryToolsInstructions,
+            reminderToolsInstructions,
             webToolsInstructions,
             computerToolsInstructions,
             calendarToolsInstructions,

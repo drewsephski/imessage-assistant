@@ -31,8 +31,13 @@ JSONL
 | `TELEGRAM_BOT_USERNAME` | The Telegram button (`https://t.me/<username>`). |
 | `CLERK_PUBLISHABLE_KEY` | The account link, which points to the Account Portal's billing page. |
 | `CALENDAR_LANDING_ENABLED` | Set to `true` only after live calendar verification. Also requires both Composio settings; credentials alone do not enable calendar advertising. |
+| `PRODUCT_NAME` | The name shown on the landing and pricing pages. Production uses `Ossie`; unset shows "Assistant". See [naming and positioning](docs/naming-and-positioning.md) for the decision. |
 
-The conversations on the page are illustrative examples, and the product name shown is "Assistant"; both are plain constants at the top of `src/landing.tsx`.
+The conversations on the page are illustrative examples, defined as plain constants at the top of `src/landing.tsx`.
+
+## Reminders and memory
+
+[Reminders and memory](docs/reminders-and-memory.md) are core features on both channels: the assistant texts the user back at a chosen time, and keeps a small profile (name, timezone, up to 20 notes) the user asked for, shared across iMessage and Telegram. They need the additive `user_profiles` and `reminders` tables and the `reconcile-reminders` schedule. Apply the schema before deploying the agents; an ordinary turn reads the profile first and fails without the table. Verified locally only; the live checks in that document are still open.
 
 ## Calendar and attachment improvements
 
@@ -44,7 +49,7 @@ Apply the additive calendar and `received_attachments` tables, plus the replacem
 
 ## Open loops
 
-[Open loops](docs/open-loops.md) is an optional, explicitly saved follow-up list shared across iMessage and Telegram. It is off unless `OPEN_LOOPS_ENABLED=true`, needs its additive tables first, sends nothing proactively, and has only been tested locally. Do not advertise it until the live checks in that document pass.
+[Open loops](docs/open-loops.md) is an optional, explicitly saved follow-up list shared across iMessage and Telegram. It is off unless `OPEN_LOOPS_ENABLED=true`, needs its additive tables first, sends nothing proactively (timed messages are reminders, above), and has only been tested locally. Do not advertise it until the live checks in that document pass.
 
 ## Product foundations
 

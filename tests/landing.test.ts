@@ -150,12 +150,19 @@ test("the setup path matches what the channel gate and linking flow do", async (
 });
 
 test("retention copy matches the computer and per-channel chat behavior", async () => {
-  const text = visibleText(await render({ imessageNumber: NUMBER, telegramUsername: USERNAME }));
+  const page = await render({ imessageNumber: NUMBER, telegramUsername: USERNAME });
+  const text = visibleText(page);
 
   assert.match(text, /Files on its computer are temporary/);
   assert.match(text, /wiped after about a week without use/);
-  assert.match(text, /Each chat keeps its own history/);
+  assert.match(text, /Each chat keeps its own conversation history/);
   assert.match(text, /a conversation in one app doesn’t carry over to another/);
+  // Memory and reminders are core, so they are explained whatever else is configured
+  assert.match(text, /It remembers what you tell it\./);
+  assert.match(text, /It texts you when it’s time\./);
+  assert.match(text, /Can it remind me of things\?/);
+  assert.match(text, /won’t keep passwords, codes or card numbers/);
+  assert.ok(elements(page, "tab").some((tag) => attribute(tag, "id") === "tab-reminder"));
   assert.doesNotMatch(text, /whichever app you text from/);
 });
 
@@ -197,8 +204,8 @@ test("calendar is absent from the whole page unless enabled", async () => {
     // The stylesheet comes from Google Fonts, so this one only looks at what a reader sees
     assert.doesNotMatch(visibleText(page), /google/i);
     assert.doesNotMatch(metaDescription(page), /google/i);
-    assert.equal(elements(page, "tab").length, 3);
-    assert.equal(elements(page, "thread").length, 3);
+    assert.equal(elements(page, "tab").length, 4);
+    assert.equal(elements(page, "thread").length, 4);
   }
 });
 
@@ -284,7 +291,7 @@ test("the document structure is navigable", async () => {
 
   // Questions use native disclosures, each with its own heading
   const questions = page.match(/<details>/g)?.length ?? 0;
-  assert.equal(questions, 6);
+  assert.equal(questions, 7);
   assert.equal(page.match(/<summary><h3>/g)?.length, questions);
 });
 
@@ -297,5 +304,20 @@ test("the headline reads as one sentence pair and the animations come from the s
 
 test("each question disclosure exists without the calendar answer", async () => {
   const page = await render({ imessageNumber: NUMBER });
-  assert.equal(page.match(/<details>/g)?.length, 5);
+  assert.equal(page.match(/<details>/g)?.length, 6);
+});
+
+test("the product name comes from configuration and defaults to Assistant", async () => {
+  const plain = await render({ imessageNumber: NUMBER });
+  assert.match(plain, /<title>Assistant, a personal assistant you text<\/title>/);
+  assert.match(visibleText(plain), /Assistant, \d{4}/);
+
+  const named = await render({ imessageNumber: NUMBER, productName: " Ossie " });
+  assert.match(named, /<title>Ossie, a personal assistant you text<\/title>/);
+  assert.match(named, /aria-label="Ossie home"/);
+  assert.match(visibleText(named), /Ossie, \d{4}/);
+  assert.doesNotMatch(named, /Assistant,/);
+
+  // Blank configuration is the same as none
+  assert.match(await render({ productName: "   " }), /<title>Assistant, a personal assistant you text<\/title>/);
 });

@@ -34,8 +34,12 @@ const landingLinks = (): LandingLinks => {
     pricingUrl: account && '/pricing',
     // Advertising is a separate rollout choice from installing credentials.
     calendarEnabled: process.env.CALENDAR_LANDING_ENABLED === 'true' && Boolean(calendarConfig()),
+    productName: productName(),
   }
 }
+
+// The product's public name, shared by every page. Unset means the pages say "Assistant"
+const productName = () => process.env.PRODUCT_NAME?.trim() || undefined
 
 // Rendered once: the page only depends on configuration read at startup
 let landing: ReturnType<typeof landingPage> | undefined
@@ -50,7 +54,7 @@ const pricingConfig = (): PricingConfig | undefined => {
   const publishableKey = process.env.CLERK_PUBLISHABLE_KEY
   if (!publishableKey) return undefined
   try {
-    return { publishableKey, frontendApi: clerkFrontendApi(publishableKey) }
+    return { publishableKey, frontendApi: clerkFrontendApi(publishableKey), productName: productName() }
   } catch {
     return undefined
   }

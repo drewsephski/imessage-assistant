@@ -18,11 +18,11 @@ export type LandingLinks = {
   // Whether the Google Calendar connection is configured. Everything about it stays off the page
   // unless this is true.
   calendarEnabled?: boolean;
+  // The product's name wherever the page shows it; "Assistant" until one is configured
+  productName?: string;
 };
 
-// The product's name wherever the page shows it
-const NAME = "Assistant";
-const TITLE = `${NAME}, a personal assistant you text`;
+export const DEFAULT_PRODUCT_NAME = "Assistant";
 
 type Chip = { name: string; meta: string; kind: "document" | "photos" | "event" };
 
@@ -60,6 +60,13 @@ const examples: Example[] = [
     ask: "Turn these receipts into a spreadsheet.",
     reply: "Done. One row per receipt, totaled by category.",
     file: { name: "receipts.xlsx", meta: "Example spreadsheet", kind: "document" },
+  },
+  {
+    id: "reminder",
+    tab: "Set a reminder",
+    ask: "Remind me Thursday at 9 to send Dana the invoice.",
+    reply: "Will do. I’ll text you Thursday at 9:00 AM, Chicago time.",
+    file: { name: "Reminder set", meta: "Thu 9:00 AM · America/Chicago", kind: "event" },
   },
 ];
 
@@ -104,10 +111,17 @@ const abilities: Ability[] = [
     tone: "lilac",
   },
   {
-    title: "It keeps your place in a chat.",
-    body: "Each chat keeps its own history, so a conversation in one app doesn’t carry over to another. Files on its computer are temporary and are wiped after about a week without use, so save what you want to keep.",
+    title: "It remembers what you tell it.",
+    body: "Say your name, where you live and how you like things done once, and it knows on every app you reach it from. It tells you what it saved, and “forget that” removes it. Each chat keeps its own conversation history, and files on its computer are wiped after about a week without use.",
     blob: "memory",
     tone: "gum",
+  },
+  {
+    title: "It texts you when it’s time.",
+    body: "Ask it to remind you and it messages you back in the same chat at that moment: tomorrow at 9, next Tuesday, in three weeks. Reminders are one-time and set in your timezone, and you can list or cancel them just by asking.",
+    blob: "step-hi",
+    tone: "sky",
+    size: 800,
   },
 ];
 
@@ -675,7 +689,10 @@ const Page = ({
   accountUrl,
   pricingUrl,
   calendarEnabled = false,
+  productName,
 }: LandingLinks) => {
+  const NAME = productName?.trim() || DEFAULT_PRODUCT_NAME;
+  const TITLE = `${NAME}, a personal assistant you text`;
   const imessageUrl = imessageNumber && `sms:${imessageNumber}`;
   const telegramUrl = telegramUsername && `https://t.me/${telegramUsername}`;
   // Only the apps this deployment can be reached on are ever named
@@ -691,7 +708,7 @@ const Page = ({
       : undefined;
   const shownExamples = calendarEnabled ? [...examples, calendarExample] : examples;
   const shownAbilities = calendarEnabled ? [...abilities, calendarAbility] : abilities;
-  const description = `Text it what you need. It has its own computer and live access to the web, so it sends back the finished file or the answer.${
+  const description = `Text it what you need. It has its own computer and live access to the web, so it sends back the finished file or the answer. It remembers what you tell it and texts you back when you ask it to.${
     channels ? ` Works in ${channels}.` : ""
   } Free accounts include ${MESSAGE_LIMITS.free} messages a month.`;
 
@@ -761,8 +778,8 @@ const Page = ({
                 <span>Text it what you need.</span> <span>Get the finished thing back.</span>
               </h1>
               <p class="hero-sub">
-                A personal assistant{channels ? ` in ${channels}` : " you text"}, with its own computer and
-                the live web.
+                A personal assistant{channels ? ` in ${channels}` : " you text"}, with its own computer,
+                the live web, and a memory.
               </p>
               {!start && (
                 <p class="notice" id="chat-unavailable">
@@ -903,10 +920,26 @@ const Page = ({
                     Usage limits apply, so a large or costly request may be stopped.
                   </p>
                 </Question>
+                <Question title="Can it remind me of things?">
+                  <p>
+                    Yes. Say when, and it texts you back in the same chat at that time. Reminders are
+                    one-time and use the timezone you’ve told it, and you can list or cancel them by
+                    asking.
+                  </p>
+                  <p>
+                    If a reminder can’t be delivered, it’s retried a few times and then dropped, so
+                    don’t rely on it for anything critical.
+                  </p>
+                </Question>
                 <Question title="What does it keep, and for how long?">
                   <p>
-                    Each chat keeps its own history, and a conversation in one app doesn’t carry over
-                    to another.
+                    It remembers what you ask it to: your name, your timezone and short notes. Those are
+                    shared across your chat apps and kept until you tell it to forget them. It won’t
+                    keep passwords, codes or card numbers even if you ask.
+                  </p>
+                  <p>
+                    Each chat keeps its own conversation history, and a conversation in one app
+                    doesn’t carry over to another.
                   </p>
                   <p>
                     Files on its computer are temporary. They’re wiped after about a week without use,

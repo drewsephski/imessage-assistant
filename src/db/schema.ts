@@ -265,6 +265,88 @@ export const openLoopReceipts = pgTable(
   ],
 );
 
+// What the assistant knows about a person on every channel. Each item was said by the user and
+// saved on purpose; nothing is inferred and stored silently. Notes are short plain lines.
+export const PROFILE_NOTE_LIMIT = 20;
+export const userProfiles = pgTable(
+  "user_profiles",
+  {
+    clerkUserId: text("clerk_user_id").primaryKey(),
+    // IANA zone such as "America/Chicago"; null until the user says where they are
+    timeZone: text("time_zone"),
+    displayName: text("display_name"),
+    notes: jsonb("notes").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "user_profiles_name_check",
+      sql`${table.displayName} is null or char_length(${table.displayName}) between 1 and 80`,
+    ),
+    check(
+      "user_profiles_zone_check",
+      sql`${table.timeZone} is null or char_length(${table.timeZone}) between 1 and 64`,
+    ),
+    check(
+      "user_profiles_notes_check",
+      sql`jsonb_typeof(${table.notes}) = 'array' and jsonb_array_length(${table.notes}) <= ${sql.raw(String(PROFILE_NOTE_LIMIT))}`,
+    ),
+  ],
+);
+
+export const REMINDER_STATUSES = ["scheduled", "sent", "canceled", "failed"] as const;
+export type ReminderStatus = (typeof REMINDER_STATUSES)[number];
+
+// A message the assistant sends back to the chat it was set from, at a time the user chose. The
+// row is authoritative: a delayed run or the sweep sends only what it can claim here first.
+export const reminders = pgTable(
+  "reminders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clerkUserId: text("clerk_user_id").notNull(),
+    platform: text("platform", { enum: PLATFORMS }).notNull(),
+    // The platform's own id for the private chat the reminder goes back to
+    chatId: text("chat_id").notNull(),
+    sourceTaskId: uuid("source_task_id")
+      .notNull()
+      .references(() => assistantTasks.id),
+    message: text("message").notNull(),
+    dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+    // The zone the time was phrased in, so the confirmation and the list read naturally
+    timeZone: text("time_zone").notNull(),
+    status: text("status", { enum: REMINDER_STATUSES }).notNull().default("scheduled"),
+    // The delayed Trigger.dev run that delivers it; null when scheduling the run failed and
+    // the sweep will send it instead
+    runId: text("run_id"),
+    attempts: integer("attempts").notNull().default(0),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    canceledAt: timestamp("canceled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // A retried turn that sets the same reminder again gets the first one back
+    uniqueIndex("reminders_source_idx").on(table.sourceTaskId, table.dueAt, table.message),
+    index("reminders_owner_idx").on(table.clerkUserId, table.status, table.dueAt),
+    index("reminders_due_idx").on(table.dueAt).where(sql`${table.status} = 'scheduled'`),
+    check("reminders_platform_check", sql`${table.platform} in ('telegram', 'linq')`),
+    check(
+      "reminders_status_check",
+      sql`${table.status} in ('scheduled', 'sent', 'canceled', 'failed')`,
+    ),
+    check("reminders_message_check", sql`char_length(${table.message}) between 1 and 500`),
+    check("reminders_zone_check", sql`char_length(${table.timeZone}) between 1 and 64`),
+    check("reminders_attempts_check", sql`${table.attempts} >= 0`),
+    check("reminders_sent_check", sql`(${table.status} = 'sent') = (${table.sentAt} is not null)`),
+    check(
+      "reminders_canceled_check",
+      sql`(${table.status} = 'canceled') = (${table.canceledAt} is not null)`,
+    ),
+  ],
+);
+
 export const SPENDING_CATEGORIES = ["model", "web", "computer", "messaging", "storage", "integration"] as const;
 export type SpendingCategory = (typeof SPENDING_CATEGORIES)[number];
 
