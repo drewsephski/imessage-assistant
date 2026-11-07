@@ -42,6 +42,10 @@ The optional [Google Calendar integration](docs/calendar-integration.md) uses Co
 
 Apply the additive calendar and `received_attachments` tables, plus the replacement spending-category check, before deploying. Attachment access is now registered at verified ingress and checked against the owner and platform for both model and computer downloads. Files from before this rollout need to be attached again; do not infer ownership from transcript text. Download limits apply to actual bytes, not just file metadata. These registrations are not durable file storage.
 
+## Open loops
+
+[Open loops](docs/open-loops.md) is an optional, explicitly saved follow-up list shared across iMessage and Telegram. It is off unless `OPEN_LOOPS_ENABLED=true`, needs its additive tables first, sends nothing proactively, and has only been tested locally. Do not advertise it until the live checks in that document pass.
+
 ## Product foundations
 
 See [the implementation plan](docs/product-foundations.md) for sequencing, acceptance criteria, and rollout.

@@ -3,6 +3,7 @@ import { chat } from "@trigger.dev/sdk/ai";
 import { channelAgent, channelSurface } from "./channel-agent.js";
 import { ownedAttachmentLoader } from "./attachments.js";
 import { log } from "./log.js";
+import { loopReply } from "./loop-tools.js";
 import { deliverTaskReply } from "./task-tracking.js";
 import { spendingNotice, withAllowanceNotice } from "../spending/runtime.js";
 import { withServiceSpending } from "../spending/context.js";
@@ -33,6 +34,8 @@ type TelegramMessage = {
   from?: { id: number };
   text?: string;
   caption?: string;
+  entities?: { type: string }[];
+  caption_entities?: { type: string }[];
   document?: TelegramFile;
   // The same photo in increasing sizes
   photo?: (TelegramFile & { width: number; height: number })[];
@@ -93,7 +96,7 @@ const fileUrls = channelFileUrls("telegram");
 
 // One durable session per Clerk user, in their private chat: messages (text and files) become turns,
 // replies are posted back
-const telegramChannel = chat.channels.custom({
+export const telegramChannel = chat.channels.custom({
   id: "telegram",
   endpoint: telegramEndpoint,
   // Closed sessions can't be reopened and their keys can't be reused, so changing this prefix
@@ -104,13 +107,21 @@ const telegramChannel = chat.channels.custom({
   inbound: (update) => {
     const message = update.message!;
     const attachment = attachmentOf(message);
+    const entities = message.text === undefined ? message.caption_entities : message.entities;
+    const nativeQuote = Array.isArray(entities) && entities.some(
+      (entity) => entity?.type === "blockquote" || entity?.type === "expandable_blockquote",
+    );
     return {
-      message: toUserMessage({
-        platform: "telegram",
-        text: message.text ?? message.caption,
-        attachments: attachment ? [attachment] : [],
-        maxDownloadBytes: MAX_DOWNLOAD_BYTES,
-      }),
+      message: {
+        ...toUserMessage({
+          platform: "telegram",
+          text: message.text ?? message.caption,
+          attachments: attachment ? [attachment] : [],
+          maxDownloadBytes: MAX_DOWNLOAD_BYTES,
+        }),
+        // Native quotes have no textual '>' marker. Keep their provenance for command gates.
+        ...(nativeQuote ? { metadata: { telegramNativeQuote: true } } : {}),
+      },
       externalUserId: message.from && String(message.from.id),
       externalMessageId: String(message.message_id),
     };
@@ -134,7 +145,7 @@ const telegramChannel = chat.channels.custom({
     });
   },
   outbound: (reply) => {
-    const text = spendingNotice() ?? reply.text;
+    const text = spendingNotice() ?? loopReply() ?? reply.text;
     return text ? { text } : null;
   },
   send: async (message, ctx) => {
