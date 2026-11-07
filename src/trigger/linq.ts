@@ -5,6 +5,7 @@ import { channelAgent, channelSurface } from "./channel-agent.js";
 import { ownedAttachmentLoader } from "./attachments.js";
 import { channelFileUrls, splitMessage, toUserMessage } from "./channel-messages.js";
 import { log } from "./log.js";
+import { loopReply } from "./loop-tools.js";
 import { deliverTaskReply, recordTaskDelivery } from "./task-tracking.js";
 import { spendingNotice, withAllowanceNotice } from "../spending/runtime.js";
 import { withServiceSpending } from "../spending/context.js";
@@ -57,7 +58,7 @@ const chatIdOf = (ctx: { handle?: { chatId: string }; event?: LinqEvent }) =>
 
 // One durable session per Clerk user, in their one-to-one iMessage chat with the line: messages
 // (text and files) become turns, replies are posted back
-const linqChannel = chat.channels.custom({
+export const linqChannel = chat.channels.custom({
   id: "linq",
   endpoint: linqEndpoint,
   // Closed sessions can't be reopened and their keys can't be reused, so changing this prefix
@@ -113,7 +114,7 @@ const linqChannel = chat.channels.custom({
     }
   }),
   outbound: (reply) => {
-    const text = spendingNotice() ?? reply.text;
+    const text = spendingNotice() ?? loopReply() ?? reply.text;
     return text ? { text } : null;
   },
   send: async (message, ctx) => {

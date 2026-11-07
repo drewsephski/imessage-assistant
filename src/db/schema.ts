@@ -4,6 +4,7 @@ import {
   bigint,
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -189,6 +190,78 @@ export const taskAttempts = pgTable(
       sql`(${table.status} = 'running') = (${table.finishedAt} is null)`,
     ),
     check("task_attempts_deadline_check", sql`${table.deadlineAt} > ${table.startedAt}`),
+  ],
+);
+
+// Saved follow-ups, shared across an owner's channels. Deliberately unlinked from tasks: an open
+// row outlives its source request, and forgetting one leaves only a receipt without its content.
+export const openLoops = pgTable(
+  "open_loops",
+  {
+    clerkUserId: text("clerk_user_id").notNull(),
+    handle: text("handle").notNull(),
+    status: text("status", { enum: ["proposed", "open", "done"] }).notNull(),
+    direction: text("direction", { enum: ["mine", "waiting"] }).notNull(),
+    sourcePlatform: text("source_platform", { enum: PLATFORMS }).notNull(),
+    title: text("title").notNull(),
+    nextAction: text("next_action").notNull(),
+    reviewOn: date("review_on", { mode: "string" }),
+    evidenceQuote: text("evidence_quote").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // A done row never changes again, so this doubles as its retention clock.
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.clerkUserId, table.handle] }),
+    index("open_loops_proposal_expiry_idx").on(table.expiresAt).where(sql`${table.status} = 'proposed'`),
+    index("open_loops_done_updated_idx").on(table.updatedAt).where(sql`${table.status} = 'done'`),
+    check("open_loops_handle_check", sql`${table.handle} ~ '^L[0-9A-F]{12}$'`),
+    check("open_loops_status_check", sql`${table.status} in ('proposed', 'open', 'done')`),
+    check("open_loops_direction_check", sql`${table.direction} in ('mine', 'waiting')`),
+    check("open_loops_platform_check", sql`${table.sourcePlatform} in ('telegram', 'linq')`),
+    check(
+      "open_loops_content_check",
+      sql`char_length(${table.title}) between 1 and 120 and char_length(${table.nextAction}) between 1 and 160 and char_length(${table.evidenceQuote}) between 1 and 280`,
+    ),
+    check("open_loops_expiry_check", sql`(${table.status} = 'proposed') = (${table.expiresAt} is not null)`),
+  ],
+);
+
+// At most one per logical task, so a retry replays its first result and can never re-create
+// forgotten content or undo a later command. Identifiers and codes only, kept while the task exists.
+export const openLoopReceipts = pgTable(
+  "open_loop_receipts",
+  {
+    clerkUserId: text("clerk_user_id").notNull(),
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => assistantTasks.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["proposal", "mutation"] }).notNull(),
+    handle: text("handle").notNull(),
+    action: text("action", { enum: ["keep", "waiting", "mine", "done", "forget"] }),
+    outcome: text("outcome", {
+      enum: ["applied", "already_applied", "not_found", "invalid_transition", "expired"],
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.clerkUserId, table.taskId] }),
+    index("open_loop_receipts_task_idx").on(table.taskId),
+    check("open_loop_receipts_handle_check", sql`${table.handle} ~ '^L[0-9A-F]{12}$'`),
+    check("open_loop_receipts_kind_check", sql`${table.kind} in ('proposal', 'mutation')`),
+    check(
+      "open_loop_receipts_action_check",
+      sql`${table.action} is null or ${table.action} in ('keep', 'waiting', 'mine', 'done', 'forget')`,
+    ),
+    check(
+      "open_loop_receipts_outcome_check",
+      sql`${table.outcome} is null or ${table.outcome} in ('applied', 'already_applied', 'not_found', 'invalid_transition', 'expired')`,
+    ),
+    check(
+      "open_loop_receipts_mutation_check",
+      sql`(${table.kind} = 'mutation') = (${table.action} is not null) and (${table.kind} = 'mutation') = (${table.outcome} is not null)`,
+    ),
   ],
 );
 
